@@ -1,0 +1,22 @@
+# Dependencias
+node_modules/
+
+# Builds
+dist/
+cdk.out/
+.next/
+out/
+*.tsbuildinfo
+
+# Tests
+coverage/
+
+# Secretos y config local
+.env
+.env.*
+!.env.example
+
+# Logs y sistema
+*.log
+.DS_Store
+Thumbs.db
