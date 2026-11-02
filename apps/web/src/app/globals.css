@@ -1,26 +1,204 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/*
+ * Receipts App design tokens.
+ * Colors are OKLCH. Light values live in @theme; dark values override the
+ * same custom properties under prefers-color-scheme, so every utility
+ * (bg-canvas, text-ink, border-line...) switches theme with no `dark:` prefix.
+ */
+@theme {
+  /* Neutrals: warm paper ground, green-black ink */
+  --color-canvas: oklch(0.982 0.005 95);
+  --color-surface: oklch(1 0 0);
+  --color-surface-muted: oklch(0.962 0.007 100);
+  --color-ink: oklch(0.24 0.02 165);
+  --color-ink-muted: oklch(0.45 0.017 165);
+  --color-ink-subtle: oklch(0.53 0.014 165);
+  --color-line: oklch(0.905 0.009 120);
+  --color-line-strong: oklch(0.8 0.012 140);
+
+  /* Brand: evergreen, the color of money that is accounted for */
+  --color-primary: oklch(0.44 0.085 165);
+  --color-primary-hover: oklch(0.39 0.08 165);
+  --color-primary-soft: oklch(0.948 0.026 165);
+  --color-primary-ink: oklch(0.37 0.07 165);
+  --color-on-primary: oklch(0.99 0.008 165);
+
+  /* States */
+  --color-danger: oklch(0.52 0.17 28);
+  --color-danger-soft: oklch(0.96 0.022 28);
+  --color-warning: oklch(0.5 0.11 70);
+  --color-warning-soft: oklch(0.96 0.035 85);
+  --color-focus: oklch(0.58 0.12 175);
+
+  /* Radii: concentric steps (inner + padding = outer) */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+
+  /* Easings (transitions.dev scale) */
+  --ease-smooth-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  /* Entrance used once per screen (texts reveal recipe) */
+  --animate-rise: rise var(--duration-very-slow) var(--ease-smooth-out) both;
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(var(--distance-medium));
+      filter: blur(var(--blur-medium));
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+      filter: blur(0);
+    }
+  }
 }
 
+/* Fonts and elevations reference runtime variables, so they are inlined. */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-ui), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-serif), ui-serif, Georgia, serif;
+
+  --shadow-xs: var(--elevation-xs);
+  --shadow-sm: var(--elevation-sm);
+  --shadow-md: var(--elevation-md);
+  --shadow-lg: var(--elevation-lg);
+}
+
+:root {
+  color-scheme: light dark;
+
+  /* Elevation: layered, offset, soft blur; tinted by ink, never pure gray */
+  --elevation-xs: 0 1px 2px oklch(0.24 0.02 165 / 0.06);
+  --elevation-sm: 0 1px 2px oklch(0.24 0.02 165 / 0.06), 0 2px 6px -1px oklch(0.24 0.02 165 / 0.06);
+  --elevation-md:
+    0 0 0 1px oklch(0.24 0.02 165 / 0.05), 0 2px 4px -1px oklch(0.24 0.02 165 / 0.06),
+    0 8px 20px -4px oklch(0.24 0.02 165 / 0.08);
+  --elevation-lg:
+    0 0 0 1px oklch(0.24 0.02 165 / 0.05), 0 4px 8px -2px oklch(0.24 0.02 165 / 0.06),
+    0 20px 40px -12px oklch(0.24 0.02 165 / 0.16);
+
+  /* Motion tokens (transitions.dev scale) */
+  --duration-stagger: 40ms;
+  --duration-micro: 80ms;
+  --duration-quick: 150ms;
+  --duration-fast: 250ms;
+  --duration-medium: 350ms;
+  --duration-slow: 400ms;
+  --duration-very-slow: 500ms;
+  --distance-micro: 4px;
+  --distance-base: 8px;
+  --distance-medium: 12px;
+  --blur-small: 2px;
+  --blur-medium: 3px;
+  --scale-press: 0.96;
+
+  --elevation-drop: 0 12px 24px oklch(0.24 0.02 165 / 0.12);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --color-canvas: oklch(0.18 0.012 170);
+    --color-surface: oklch(0.215 0.014 170);
+    --color-surface-muted: oklch(0.25 0.014 170);
+    --color-ink: oklch(0.94 0.008 120);
+    --color-ink-muted: oklch(0.76 0.012 150);
+    --color-ink-subtle: oklch(0.66 0.012 150);
+    --color-line: oklch(0.3 0.014 170);
+    --color-line-strong: oklch(0.4 0.016 170);
+
+    --color-primary: oklch(0.78 0.11 165);
+    --color-primary-hover: oklch(0.84 0.1 165);
+    --color-primary-soft: oklch(0.3 0.045 165);
+    --color-primary-ink: oklch(0.86 0.085 165);
+    --color-on-primary: oklch(0.2 0.03 165);
+
+    --color-danger: oklch(0.74 0.14 28);
+    --color-danger-soft: oklch(0.29 0.055 28);
+    --color-warning: oklch(0.82 0.12 82);
+    --color-warning-soft: oklch(0.3 0.05 82);
+    --color-focus: oklch(0.8 0.12 175);
+
+    /* In the dark, depth comes from a light top edge plus a deep shadow */
+    --elevation-xs: 0 1px 2px oklch(0 0 0 / 0.3);
+    --elevation-sm: inset 0 1px 0 oklch(1 0 0 / 0.04), 0 1px 3px oklch(0 0 0 / 0.35);
+    --elevation-md:
+      inset 0 1px 0 oklch(1 0 0 / 0.05), 0 0 0 1px oklch(1 0 0 / 0.04), 0 8px 20px -4px oklch(0 0 0 / 0.45);
+    --elevation-lg:
+      inset 0 1px 0 oklch(1 0 0 / 0.06), 0 0 0 1px oklch(1 0 0 / 0.05), 0 24px 48px -12px oklch(0 0 0 / 0.6);
+    --elevation-drop: 0 16px 32px oklch(0 0 0 / 0.5);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Torn-paper bottom edge for receipt surfaces (the brand's signature shape). */
+@utility receipt-edge {
+  --zigzag: 8px;
+  mask:
+    linear-gradient(#000 0 0) top / 100% calc(100% - var(--zigzag) + 1px) no-repeat,
+    conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom / calc(var(--zigzag) * 2)
+    var(--zigzag) repeat-x;
+}
+
+/* Elevation for masked surfaces: box-shadow is clipped by masks, drop-shadow is not. */
+@utility receipt-shadow {
+  filter: drop-shadow(var(--elevation-drop));
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    scrollbar-color: var(--color-line-strong) transparent;
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    caret-color: var(--color-primary);
+  }
+
+  ::selection {
+    background-color: var(--color-primary-soft);
+    color: var(--color-primary-ink);
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  a {
+    text-underline-offset: 0.2em;
+    text-decoration-thickness: 1px;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    /* biome-ignore-start lint/complexity/noImportantStyles: reduced motion must override every component transition */
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+    /* biome-ignore-end lint/complexity/noImportantStyles: reduced motion must override every component transition */
+  }
 }
