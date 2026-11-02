@@ -1,11 +1,6 @@
-import { CfnOutput, RemovalPolicy, Stack, type StackProps } from "aws-cdk-lib";
-import {
-  AccountRecovery,
-  FeaturePlan,
-  UserPool,
-  type UserPoolClient,
-} from "aws-cdk-lib/aws-cognito";
-import type { Construct } from "constructs";
+import { CfnOutput, RemovalPolicy, Stack, type StackProps } from 'aws-cdk-lib';
+import { AccountRecovery, FeaturePlan, UserPool, type UserPoolClient } from 'aws-cdk-lib/aws-cognito';
+import type { Construct } from 'constructs';
 
 export class AuthStack extends Stack {
   public readonly userPool: UserPool;
@@ -14,7 +9,7 @@ export class AuthStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
     super(scope, id, props);
 
-    this.userPool = new UserPool(this, "UserPool", {
+    this.userPool = new UserPool(this, 'UserPool', {
       featurePlan: FeaturePlan.LITE,
       selfSignUpEnabled: true,
       signInAliases: { email: true },
@@ -34,15 +29,15 @@ export class AuthStack extends Stack {
       removalPolicy: RemovalPolicy.DESTROY,
     });
 
-    this.webClient = this.userPool.addClient("WebClient", {
+    this.webClient = this.userPool.addClient('WebClient', {
       authFlows: { userSrp: true },
       generateSecret: false,
       preventUserExistenceErrors: true,
       disableOAuth: true,
     });
 
-    new CfnOutput(this, "UserPoolId", { value: this.userPool.userPoolId });
-    new CfnOutput(this, "WebClientId", {
+    new CfnOutput(this, 'UserPoolId', { value: this.userPool.userPoolId });
+    new CfnOutput(this, 'WebClientId', {
       value: this.webClient.userPoolClientId,
     });
   }
