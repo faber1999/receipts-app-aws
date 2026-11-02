@@ -1,3 +1,4 @@
+import { join } from 'node:path';
 import { CfnOutput, Duration, RemovalPolicy, Stack, type StackProps } from 'aws-cdk-lib';
 import { Distribution, PriceClass, ViewerProtocolPolicy } from 'aws-cdk-lib/aws-cloudfront';
 import { S3BucketOrigin } from 'aws-cdk-lib/aws-cloudfront-origins';
@@ -5,7 +6,6 @@ import { LogGroup, RetentionDays } from 'aws-cdk-lib/aws-logs';
 import { BlockPublicAccess, Bucket, BucketEncryption } from 'aws-cdk-lib/aws-s3';
 import { BucketDeployment, Source } from 'aws-cdk-lib/aws-s3-deployment';
 import type { Construct } from 'constructs';
-import { join } from 'node:path';
 
 const WEB_BUILD_DIR = join(import.meta.dirname, '../../apps/web/out');
 

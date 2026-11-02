@@ -5,7 +5,10 @@
   "description": "Serverless expense tracker from receipt photos",
   "author": "Faber Grajales",
   "type": "module",
-  "scripts": {},
+  "scripts": {
+    "check": "biome check",
+    "fix": "biome check --write"
+  },
   "engines": {
     "node": ">=24"
   },
@@ -18,6 +21,7 @@
   },
   "packageManager": "pnpm@12.16.1",
   "devDependencies": {
+    "@biomejs/biome": "^2.6.4",
     "typescript": "^7.0.2"
   }
 }
