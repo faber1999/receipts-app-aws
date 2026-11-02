@@ -1,0 +1,20 @@
+{
+  "name": "receipts-app",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Serverless expense tracker from receipt photos",
+  "author": "Faber Grajales",
+  "type": "module",
+  "scripts": {},
+  "engines": {
+    "node": ">=24"
+  },
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "12.16.1",
+      "onFail": "download"
+    }
+  },
+  "packageManager": "pnpm@12.16.1"
+}
