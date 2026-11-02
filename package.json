@@ -16,5 +16,8 @@
       "onFail": "download"
     }
   },
-  "packageManager": "pnpm@12.16.1"
+  "packageManager": "pnpm@12.16.1",
+  "devDependencies": {
+    "typescript": "^7.0.2"
+  }
 }
