@@ -1,0 +1,74 @@
+export const en = {
+  skipToContent: 'Skip to content',
+  header: {
+    homeLabel: 'Receipts App, home',
+  },
+  footer: {
+    tagline: 'Portfolio project built on AWS.',
+  },
+  languageSwitcher: {
+    label: 'Language',
+    options: {
+      en: 'English',
+      es: 'Español',
+    },
+  },
+  home: {
+    title: 'Your spending, clear from a photo.',
+    description:
+      'Upload a photo of a receipt and AI extracts the merchant, total, date and category. You just review where your money goes, month by month.',
+    createAccount: 'Create account',
+    signIn: 'Sign in',
+    preview: {
+      heading: 'Extracted data',
+      status: 'Processed',
+      merchantLabel: 'Merchant',
+      dateLabel: 'Date',
+      categoryLabel: 'Category',
+      totalLabel: 'Total',
+      monthLabel: 'Groceries this month:',
+      merchant: 'Green Valley Market',
+      date: 'Oct 28, 2026',
+      category: 'Groceries',
+      currency: 'USD',
+      total: 23.45,
+      monthTotal: 112.8,
+    },
+  },
+  notFound: {
+    title: 'We couldn’t find this page',
+    description: 'The link may be mistyped or the page may no longer exist. Your receipts and expenses are safe.',
+    backHome: 'Back to home',
+  },
+  signUp: {
+    title: 'Create account',
+    description: 'We’ll send a code to your email to confirm it.',
+    emailLabel: 'Email',
+    passwordLabel: 'Password',
+    passwordHint: 'At least 8 characters, with an uppercase letter, a lowercase letter and a number.',
+    submit: 'Create account',
+    submitting: 'Creating account…',
+    haveAccount: 'Already have an account?',
+    signInLink: 'Sign in',
+  },
+  validation: {
+    emailInvalid: 'Enter a valid email.',
+    passwordMinLength: 'At least 8 characters.',
+    passwordLowercase: 'Include at least one lowercase letter.',
+    passwordUppercase: 'Include at least one uppercase letter.',
+    passwordNumber: 'Include at least one number.',
+  },
+  authErrors: {
+    usernameExists: 'An account with this email already exists.',
+    invalidPassword: 'The password doesn’t meet the requirements.',
+    invalidParameter: 'Check your details and try again.',
+    codeMismatch: 'The code is incorrect.',
+    expiredCode: 'The code has expired. Request a new one.',
+    notAuthorized: 'Incorrect email or password.',
+    userNotConfirmed: 'Your email isn’t confirmed yet.',
+    tooManyAttempts: 'Too many attempts. Wait a few minutes.',
+    unknown: 'Something went wrong. Try again.',
+  },
+};
+
+export type Dictionary = typeof en;
