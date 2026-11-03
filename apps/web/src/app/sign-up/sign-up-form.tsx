@@ -2,20 +2,15 @@
 
 import { signUp } from 'aws-amplify/auth';
 import { useRouter } from 'next/navigation';
-import { type FormEvent, useState } from 'react';
+import { type SubmitEvent, useState } from 'react';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { FieldError, TextField } from '@/components/ui/input';
 import { useI18n } from '@/i18n/i18n-provider';
 import { type AuthErrorKey, getAuthErrorKey } from '@/lib/auth-errors';
-import { isValidationKey, PENDING_EMAIL_KEY, signUpSchema, type ValidationKey } from '@/lib/auth-schema';
+import { firstValidationKey, PENDING_EMAIL_KEY, signUpSchema, type ValidationKey } from '@/lib/auth-schema';
 
 type FieldErrors = Partial<Record<'email' | 'password', ValidationKey>>;
-
-function firstValidationKey(messages: string[] | undefined): ValidationKey | undefined {
-  const first = messages?.[0];
-  return isValidationKey(first) ? first : undefined;
-}
 
 export function SignUpForm() {
   const { t } = useI18n();
@@ -24,7 +19,7 @@ export function SignUpForm() {
   const [formError, setFormError] = useState<AuthErrorKey | null>(null);
   const [pending, setPending] = useState(false);
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
+  async function handleSubmit(event: SubmitEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
     setFormError(null);
 

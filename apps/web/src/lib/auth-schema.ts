@@ -26,3 +26,18 @@ export const signUpSchema = z.object({
   email: emailSchema,
   password: passwordSchema,
 });
+
+export const confirmationCodeSchema = z
+  .string()
+  .trim()
+  .regex(/^\d{6}$/, message('codeInvalid'));
+
+export const confirmSignUpSchema = z.object({
+  email: emailSchema,
+  code: confirmationCodeSchema,
+});
+
+export function firstValidationKey(messages: string[] | undefined): ValidationKey | undefined {
+  const first = messages?.[0];
+  return isValidationKey(first) ? first : undefined;
+}
