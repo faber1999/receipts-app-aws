@@ -22,9 +22,21 @@ export const passwordSchema = z
   .regex(/[A-Z]/, message('passwordUppercase'))
   .regex(/\d/, message('passwordNumber'));
 
-export const signUpSchema = z.object({
+export const signUpSchema = z
+  .object({
+    email: emailSchema,
+    password: passwordSchema,
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    path: ['confirmPassword'],
+    error: message('passwordsMismatch'),
+  });
+
+export const signInSchema = z.object({
   email: emailSchema,
-  password: passwordSchema,
+  // Only presence: the password policy is enforced at sign-up, and old accounts may predate it.
+  password: z.string().min(1, message('passwordRequired')),
 });
 
 export const confirmationCodeSchema = z
@@ -36,6 +48,22 @@ export const confirmSignUpSchema = z.object({
   email: emailSchema,
   code: confirmationCodeSchema,
 });
+
+export const forgotPasswordSchema = z.object({
+  email: emailSchema,
+});
+
+export const resetPasswordSchema = z
+  .object({
+    email: emailSchema,
+    code: confirmationCodeSchema,
+    password: passwordSchema,
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    path: ['confirmPassword'],
+    error: message('passwordsMismatch'),
+  });
 
 export function firstValidationKey(messages: string[] | undefined): ValidationKey | undefined {
   const first = messages?.[0];

@@ -1,16 +1,18 @@
 'use client';
 
 import { signUp } from 'aws-amplify/auth';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { type SubmitEvent, useState } from 'react';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { FieldError, TextField } from '@/components/ui/input';
+import { PasswordField } from '@/components/ui/password-field';
 import { useI18n } from '@/i18n/i18n-provider';
 import { type AuthErrorKey, getAuthErrorKey } from '@/lib/auth-errors';
 import { firstValidationKey, PENDING_EMAIL_KEY, signUpSchema, type ValidationKey } from '@/lib/auth-schema';
 
-type FieldErrors = Partial<Record<'email' | 'password', ValidationKey>>;
+type FieldErrors = Partial<Record<'email' | 'password' | 'confirmPassword', ValidationKey>>;
 
 export function SignUpForm() {
   const { t } = useI18n();
@@ -27,6 +29,7 @@ export function SignUpForm() {
     const parsed = signUpSchema.safeParse({
       email: formData.get('email'),
       password: formData.get('password'),
+      confirmPassword: formData.get('confirmPassword'),
     });
 
     if (!parsed.success) {
@@ -34,6 +37,7 @@ export function SignUpForm() {
       setFieldErrors({
         email: firstValidationKey(errors.email),
         password: firstValidationKey(errors.password),
+        confirmPassword: firstValidationKey(errors.confirmPassword),
       });
       return;
     }
@@ -41,8 +45,9 @@ export function SignUpForm() {
     setFieldErrors({});
     setPending(true);
 
+    const { email, password } = parsed.data;
+
     try {
-      const { email, password } = parsed.data;
       const { nextStep } = await signUp({
         username: email,
         password,
@@ -54,6 +59,9 @@ export function SignUpForm() {
         router.push('/confirm-sign-up');
       }
     } catch (error: unknown) {
+      // UsernameExistsException also covers unconfirmed accounts. We never resume them from here:
+      // that would let whoever registered the email first keep their password (pre-account takeover).
+      // The owner finishes a pending sign-up from the sign-in page, which proves the password first.
       setFormError(getAuthErrorKey(error));
     } finally {
       setPending(false);
@@ -70,16 +78,34 @@ export function SignUpForm() {
         autoComplete="email"
         error={fieldErrors.email && t.validation[fieldErrors.email]}
       />
-      <TextField
+      <PasswordField
         id="password"
         name="password"
-        type="password"
         label={t.signUp.passwordLabel}
         autoComplete="new-password"
         hint={t.signUp.passwordHint}
         error={fieldErrors.password && t.validation[fieldErrors.password]}
       />
-      {formError && <FieldError role="alert">{t.authErrors[formError]}</FieldError>}
+      <PasswordField
+        id="confirmPassword"
+        name="confirmPassword"
+        label={t.signUp.confirmPasswordLabel}
+        autoComplete="new-password"
+        error={fieldErrors.confirmPassword && t.validation[fieldErrors.confirmPassword]}
+      />
+      {formError && (
+        <FieldError role="alert">
+          {t.authErrors[formError]}
+          {formError === 'usernameExists' && (
+            <>
+              {' '}
+              <Link href="/sign-in" className="font-medium underline underline-offset-4">
+                {t.signUp.signInLink}
+              </Link>
+            </>
+          )}
+        </FieldError>
+      )}
       <Button type="submit" block disabled={pending}>
         {pending ? t.signUp.submitting : t.signUp.submit}
       </Button>

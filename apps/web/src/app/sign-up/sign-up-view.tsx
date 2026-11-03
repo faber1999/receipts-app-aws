@@ -21,7 +21,7 @@ export function SignUpView() {
       </Card>
       <p className="stagger-1 mt-6 animate-rise text-center text-sm text-ink-muted">
         {t.signUp.haveAccount}{' '}
-        <Link href="/sign-in" className="font-medium text-primary underline-offset-4 hover:underline">
+        <Link href="/sign-in" className="font-medium text-primary underline underline-offset-4">
           {t.signUp.signInLink}
         </Link>
       </p>

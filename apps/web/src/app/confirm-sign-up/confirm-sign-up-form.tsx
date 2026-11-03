@@ -6,8 +6,10 @@ import { type SubmitEvent, useEffect, useState } from 'react';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { FieldError, TextField } from '@/components/ui/input';
+import { OtpField } from '@/components/ui/otp-input';
 import { useI18n } from '@/i18n/i18n-provider';
 import { type AuthErrorKey, getAuthErrorKey } from '@/lib/auth-errors';
+import { setAuthNotice } from '@/lib/auth-notice';
 import {
   confirmSignUpSchema,
   emailSchema,
@@ -38,6 +40,7 @@ export function ConfirmSignUpForm() {
 
   function finish(): void {
     sessionStorage.removeItem(PENDING_EMAIL_KEY);
+    setAuthNotice('emailConfirmed');
     router.push('/sign-in');
   }
 
@@ -117,13 +120,10 @@ export function ConfirmSignUpForm() {
         onChange={(event) => setEmail(event.target.value)}
         error={fieldErrors.email && t.validation[fieldErrors.email]}
       />
-      <TextField
+      <OtpField
         id="code"
         name="code"
         label={t.confirmSignUp.codeLabel}
-        inputMode="numeric"
-        autoComplete="one-time-code"
-        maxLength={6}
         hint={t.confirmSignUp.codeHint}
         error={fieldErrors.code && t.validation[fieldErrors.code]}
       />
