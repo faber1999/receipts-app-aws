@@ -2,9 +2,11 @@
 
 /*
  * Receipts App design tokens.
- * Colors are OKLCH. Light values live in @theme; dark values override the
- * same custom properties under prefers-color-scheme, so every utility
- * (bg-canvas, text-ink, border-line...) switches theme with no `dark:` prefix.
+ * Colors are OKLCH. The app ships a single light theme (color-scheme: light),
+ * so native controls and scrollbars stay light even when the OS is dark.
+ * Contrast floor (WCAG 2.2 AA): text tokens >= 4.5:1 on canvas, surface and
+ * surface-muted; line-strong and focus >= 3:1 against those grounds (SC 1.4.11).
+ * `line` is decorative only (dividers); never use it to identify a control.
  */
 @theme {
   /* Neutrals: warm paper ground, green-black ink */
@@ -13,9 +15,10 @@
   --color-surface-muted: oklch(0.962 0.007 100);
   --color-ink: oklch(0.24 0.02 165);
   --color-ink-muted: oklch(0.45 0.017 165);
-  --color-ink-subtle: oklch(0.53 0.014 165);
+  --color-ink-subtle: oklch(0.51 0.014 165);
   --color-line: oklch(0.905 0.009 120);
-  --color-line-strong: oklch(0.8 0.012 140);
+  /* Control boundaries (inputs, outlined buttons, selected states): >= 3:1 */
+  --color-line-strong: oklch(0.62 0.012 150);
 
   /* Brand: evergreen, the color of money that is accounted for */
   --color-primary: oklch(0.44 0.085 165);
@@ -29,7 +32,7 @@
   --color-danger-soft: oklch(0.96 0.022 28);
   --color-warning: oklch(0.5 0.11 70);
   --color-warning-soft: oklch(0.96 0.035 85);
-  --color-focus: oklch(0.58 0.12 175);
+  --color-focus: oklch(0.53 0.11 175);
 
   /* Radii: concentric steps (inner + padding = outer) */
   --radius-xs: 4px;
@@ -42,7 +45,23 @@
   --ease-smooth-out: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
 
-  /* Entrance used once per screen (texts reveal recipe) */
+  /*
+   * Entrance motion (the one shared pattern; do not invent per-page motion).
+   * Recipe: transitions.dev texts reveal. Rise --distance-medium (12px) with a
+   * --blur-medium (3px) cross-blur over --duration-very-slow (500ms),
+   * --ease-smooth-out. Fill mode 'both' keeps items hidden during their delay.
+   *
+   * Usage on a new page (sign-in, confirm, expenses...): put `animate-rise` on
+   * the 2-4 top-level blocks of the screen, in reading order, and step them
+   * with `stagger-1` ... `stagger-4` (the first block takes no step; each step = --duration-stagger, 40ms).
+   *   <h1 class="animate-rise">          title
+   *   <p class="animate-rise stagger-1"> lede
+   *   <div class="animate-rise stagger-2">actions / form card
+   * Rules: once per screen on load only (never on hover, typing, list rows or
+   * re-renders); at most 5 steps so the last block starts by 160ms; animate
+   * blocks, not every line. Reduced motion collapses it to an instant state
+   * (see the prefers-reduced-motion rule at the end of this file).
+   */
   --animate-rise: rise var(--duration-very-slow) var(--ease-smooth-out) both;
 
   @keyframes rise {
@@ -71,7 +90,7 @@
 }
 
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
 
   /* Elevation: layered, offset, soft blur; tinted by ink, never pure gray */
   --elevation-xs: 0 1px 2px oklch(0.24 0.02 165 / 0.06);
@@ -98,41 +117,21 @@
   --blur-medium: 3px;
   --scale-press: 0.96;
 
+  /*
+   * Tooltip (transitions.dev tooltip recipe), used by <Tooltip> in
+   * components/ui/tooltip.tsx. UI hints never use the native `title`
+   * attribute: it cannot be styled and never shows on keyboard focus.
+   * Hover waits --tt-delay before appearing; keyboard focus skips it; closing
+   * never waits. Ink on surface text is 16.3:1.
+   */
+  --tt-delay: var(--duration-micro);
+  --tt-in-dur: var(--duration-quick);
+  --tt-out-dur: 50ms;
+  --tt-ease: ease-out;
+  --tt-scale: 0.98;
+  --tt-offset: var(--distance-base);
+
   --elevation-drop: 0 12px 24px oklch(0.24 0.02 165 / 0.12);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-canvas: oklch(0.18 0.012 170);
-    --color-surface: oklch(0.215 0.014 170);
-    --color-surface-muted: oklch(0.25 0.014 170);
-    --color-ink: oklch(0.94 0.008 120);
-    --color-ink-muted: oklch(0.76 0.012 150);
-    --color-ink-subtle: oklch(0.66 0.012 150);
-    --color-line: oklch(0.3 0.014 170);
-    --color-line-strong: oklch(0.4 0.016 170);
-
-    --color-primary: oklch(0.78 0.11 165);
-    --color-primary-hover: oklch(0.84 0.1 165);
-    --color-primary-soft: oklch(0.3 0.045 165);
-    --color-primary-ink: oklch(0.86 0.085 165);
-    --color-on-primary: oklch(0.2 0.03 165);
-
-    --color-danger: oklch(0.74 0.14 28);
-    --color-danger-soft: oklch(0.29 0.055 28);
-    --color-warning: oklch(0.82 0.12 82);
-    --color-warning-soft: oklch(0.3 0.05 82);
-    --color-focus: oklch(0.8 0.12 175);
-
-    /* In the dark, depth comes from a light top edge plus a deep shadow */
-    --elevation-xs: 0 1px 2px oklch(0 0 0 / 0.3);
-    --elevation-sm: inset 0 1px 0 oklch(1 0 0 / 0.04), 0 1px 3px oklch(0 0 0 / 0.35);
-    --elevation-md:
-      inset 0 1px 0 oklch(1 0 0 / 0.05), 0 0 0 1px oklch(1 0 0 / 0.04), 0 8px 20px -4px oklch(0 0 0 / 0.45);
-    --elevation-lg:
-      inset 0 1px 0 oklch(1 0 0 / 0.06), 0 0 0 1px oklch(1 0 0 / 0.05), 0 24px 48px -12px oklch(0 0 0 / 0.6);
-    --elevation-drop: 0 16px 32px oklch(0 0 0 / 0.5);
-  }
 }
 
 /* Torn-paper bottom edge for receipt surfaces (the brand's signature shape). */
@@ -147,6 +146,11 @@
 /* Elevation for masked surfaces: box-shadow is clipped by masks, drop-shadow is not. */
 @utility receipt-shadow {
   filter: drop-shadow(var(--elevation-drop));
+}
+
+/* Entrance stagger step: stagger-1 = 40ms, stagger-2 = 80ms ... (pairs with animate-rise). */
+@utility stagger-* {
+  animation-delay: calc(var(--duration-stagger) * --value(integer));
 }
 
 @layer base {
@@ -164,8 +168,10 @@
     caret-color: var(--color-primary);
   }
 
+  /* Translucent so a line's highlight can't paint over the descenders (g, p, commas)
+     of the line above when headings use tight leading. */
   ::selection {
-    background-color: var(--color-primary-soft);
+    background-color: color-mix(in oklch, var(--color-primary) 16%, transparent);
     color: var(--color-primary-ink);
   }
 
@@ -177,6 +183,20 @@
 
   p {
     text-wrap: pretty;
+  }
+
+  /* Preflight resets buttons to the default cursor; everything clickable gets a pointer. */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  summary,
+  label[for],
+  select {
+    cursor: pointer;
+  }
+
+  :disabled,
+  [aria-disabled="true"] {
+    cursor: not-allowed;
   }
 
   a {

@@ -30,10 +30,9 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#faf9f5' },
-    { media: '(prefers-color-scheme: dark)', color: '#0c1311' },
-  ],
+  // Light only: matches --color-canvas so the browser chrome blends with the page.
+  themeColor: '#faf9f5',
+  colorScheme: 'light',
 };
 
 export default function RootLayout({ children }: LayoutProps<'/'>) {
@@ -46,6 +45,7 @@ export default function RootLayout({ children }: LayoutProps<'/'>) {
           <SiteHeader />
           <main
             id={MAIN_CONTENT_ID}
+            tabIndex={-1}
             className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-4 py-10 sm:px-6 sm:py-16"
           >
             {children}

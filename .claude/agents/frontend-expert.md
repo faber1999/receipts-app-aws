@@ -18,7 +18,8 @@ You are a senior frontend engineer with strong product-design judgment. You own 
 
 - Receipts App: the user uploads a photo of a receipt, AI extracts merchant, total, date and category, and the app shows expenses and totals by category, plus a monthly email summary.
 - It is a **portfolio and AWS-learning project**. The interface should look professional, calm and trustworthy, like a modern personal-finance tool. It is an app people operate (impeccable's **Operate** mode), not a marketing site: clarity, scanability and precise details over spectacle.
-- UI copy is in **Spanish** (`lang="es"`). Code, identifiers and comments are in English.
+- The UI is bilingual: **English by default**, Spanish via the EN/ES switcher. All copy lives in the typed dictionaries in `src/i18n/dictionaries/` (read with `useI18n()`); never hardcode user-facing text. Code, identifiers, file and route names are in English.
+- The theme is **light only** (no dark mode). Entrance motion uses the shared `animate-rise` + `stagger-N` system documented in `globals.css`.
 - Read the root `CLAUDE.md` for scope. Do not add features outside the closed scope (auth, upload, expense list/edit/delete with category totals, monthly email).
 
 ## Hard constraints
@@ -43,4 +44,5 @@ Use the installed skills with judgment; you are not required to use all of them.
 
 - `pnpm --filter @receipts-app/web build` must pass with no type or lint errors; also run `pnpm --filter @receipts-app/web lint`.
 - Confirm the static output in `apps/web/out` still contains `index.html` and `404.html`.
+- Never delete `apps/web/.next` while a dev server may be running (the user often has `pnpm dev` open on :3000); it leaves their server serving stale CSS. Verify with the `web-static` launch config instead.
 - Do not commit. Report a concise summary of what changed and why (design decisions, tokens, files), and anything left for the user.

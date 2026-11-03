@@ -29,7 +29,9 @@ export function Input({ invalid = false, className, ...props }: InputProps) {
         'transition-[box-shadow,background-color] duration-(--duration-quick) ease-standard',
         'hover:ring-ink-subtle',
         'focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-focus focus-visible:ring-transparent',
-        'aria-invalid:ring-danger aria-invalid:focus-visible:outline-danger',
+        // Invalid + focused keeps the danger ring and adds an offset danger outline,
+        // so focus stays visibly distinct from the resting invalid state.
+        'aria-invalid:ring-danger aria-invalid:focus-visible:outline-offset-2 aria-invalid:focus-visible:outline-danger aria-invalid:focus-visible:ring-danger',
         'disabled:cursor-not-allowed disabled:bg-surface-muted disabled:opacity-60',
         className,
       )}

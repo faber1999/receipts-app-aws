@@ -6,6 +6,12 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "@receipts-app/web", "dev"],
       "port": 3000
+    },
+    {
+      "name": "web-static",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "4173", "-d", "apps/web/out"],
+      "port": 4173
     }
   ]
 }

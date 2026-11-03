@@ -13,7 +13,9 @@ export function SkipLink() {
   return (
     <a
       href={`#${MAIN_CONTENT_ID}`}
-      className="sr-only rounded-md bg-surface px-3 py-2 text-sm font-medium shadow-md focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50"
+      // Parked above the viewport rather than sr-only: `not-sr-only` resets padding to 0,
+      // which left the focused link as a bare 20px-tall box (below the 24px target size).
+      className="fixed top-3 left-3 z-50 -translate-y-[calc(100%+1rem)] rounded-md bg-surface px-3 py-2 text-sm font-medium text-ink transition-transform focus:shadow-md duration-(--duration-quick) ease-smooth-out focus:translate-y-0"
     >
       {t.skipToContent}
     </a>

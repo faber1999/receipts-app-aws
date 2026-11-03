@@ -14,9 +14,9 @@ export const en = {
     },
   },
   home: {
-    title: 'Your spending, clear from a photo.',
+    title: 'Snap the receipt. The expense logs itself.',
     description:
-      'Upload a photo of a receipt and AI extracts the merchant, total, date and category. You just review where your money goes, month by month.',
+      'AI reads the merchant, total, date and category from the photo and saves the expense for you. Then see where your money goes, month by month.',
     createAccount: 'Create account',
     signIn: 'Sign in',
     preview: {

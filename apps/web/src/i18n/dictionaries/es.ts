@@ -16,9 +16,9 @@ export const es: Dictionary = {
     },
   },
   home: {
-    title: 'Tus gastos, claros desde una foto.',
+    title: 'Fotografía el recibo. El gasto se registra solo.',
     description:
-      'Sube la foto de un recibo y la IA extrae el comercio, el total, la fecha y la categoría. Tú solo revisas en qué se va tu dinero, mes a mes.',
+      'La IA lee el comercio, el total, la fecha y la categoría de la foto y guarda el gasto por ti. Luego ves en qué se va tu dinero, mes a mes.',
     createAccount: 'Crear cuenta',
     signIn: 'Iniciar sesión',
     preview: {
