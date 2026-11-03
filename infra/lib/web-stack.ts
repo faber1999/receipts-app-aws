@@ -1,6 +1,14 @@
 import { join } from 'node:path';
 import { CfnOutput, Duration, RemovalPolicy, Stack, type StackProps } from 'aws-cdk-lib';
-import { Distribution, PriceClass, ViewerProtocolPolicy } from 'aws-cdk-lib/aws-cloudfront';
+import {
+  Function as CloudFrontFunction,
+  Distribution,
+  FunctionCode,
+  FunctionEventType,
+  FunctionRuntime,
+  PriceClass,
+  ViewerProtocolPolicy,
+} from 'aws-cdk-lib/aws-cloudfront';
 import { S3BucketOrigin } from 'aws-cdk-lib/aws-cloudfront-origins';
 import { LogGroup, RetentionDays } from 'aws-cdk-lib/aws-logs';
 import { BlockPublicAccess, Bucket, BucketEncryption } from 'aws-cdk-lib/aws-s3';
@@ -21,10 +29,17 @@ export class WebStack extends Stack {
       autoDeleteObjects: true,
     });
 
+    const urlRewrite = new CloudFrontFunction(this, 'UrlRewriteFunction', {
+      code: FunctionCode.fromFile({ filePath: join(import.meta.dirname, 'functions/url-rewrite.js') }),
+      runtime: FunctionRuntime.JS_2_0,
+      comment: 'Maps clean URLs to the static export .html files',
+    });
+
     const distribution = new Distribution(this, 'Distribution', {
       defaultBehavior: {
         origin: S3BucketOrigin.withOriginAccessControl(siteBucket),
         viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+        functionAssociations: [{ function: urlRewrite, eventType: FunctionEventType.VIEWER_REQUEST }],
       },
       defaultRootObject: 'index.html',
       errorResponses: [
