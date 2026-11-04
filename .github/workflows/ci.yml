@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Least privilege for the GitHub token: this workflow only needs to read the code.
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Lint, type-check, build and test
+    runs-on: ubuntu-latest
+    env:
+      # Public, fake values: the build only needs them to pass the env validation (lib/env.ts).
+      NEXT_PUBLIC_USER_POOL_ID: us-east-2_ci0000000
+      NEXT_PUBLIC_USER_POOL_CLIENT_ID: ci-client-id
+      NEXT_PUBLIC_API_URL: https://ci.invalid
+    steps:
+      - uses: actions/checkout@v5
+
+      # Installs the pnpm version pinned in package.json ("packageManager").
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint and format (Biome)
+        run: pnpm check
+
+      - name: Type-check packages
+        run: pnpm typecheck
+
+      # Before the tests: the WebStack test packages apps/web/out.
+      - name: Build web
+        run: pnpm --filter @receipts-app/web build
+
+      - name: Unit and infrastructure tests
+        run: pnpm test

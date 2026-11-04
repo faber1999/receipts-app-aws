@@ -8,6 +8,7 @@
   "scripts": {
     "check": "biome check",
     "fix": "biome check --write",
+    "typecheck": "tsc -p packages/contracts/tsconfig.json && tsc -p services/api/tsconfig.json && tsc -p infra/tsconfig.json",
     "test": "pnpm -r --if-present test"
   },
   "engines": {
