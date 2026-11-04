@@ -17,6 +17,7 @@ const api = new ApiStack(app, 'ApiStack', {
   userPool: auth.userPool,
   userPoolClient: auth.webClient,
   table: data.table,
+  receiptsBucket: data.receiptsBucket,
   allowedOrigins,
 });
 

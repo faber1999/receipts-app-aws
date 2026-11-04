@@ -8,17 +8,18 @@ import type { ITableV2 } from 'aws-cdk-lib/aws-dynamodb';
 import { Architecture, Runtime } from 'aws-cdk-lib/aws-lambda';
 import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
 import { LogGroup, RetentionDays } from 'aws-cdk-lib/aws-logs';
+import type { IBucket } from 'aws-cdk-lib/aws-s3';
 import type { Construct } from 'constructs';
 
 export interface ApiStackProps extends StackProps {
   userPool: IUserPool;
   userPoolClient: IUserPoolClient;
   table: ITableV2;
+  receiptsBucket: IBucket;
   allowedOrigins: string[];
 }
 
-const HANDLERS_DIR = join(import.meta.dirname, '../../../services/api/src/expenses/handlers');
-
+const API_SRC_DIR = join(import.meta.dirname, '../../../services/api/src');
 export class ApiStack extends Stack {
   public readonly apiUrl: string;
 
@@ -27,12 +28,15 @@ export class ApiStack extends Stack {
 
     const createHandler = (name: string, file: string): NodejsFunction =>
       new NodejsFunction(this, `${name}Function`, {
-        entry: join(HANDLERS_DIR, file),
+        entry: join(API_SRC_DIR, file),
         runtime: Runtime.NODEJS_24_X,
         architecture: Architecture.ARM_64,
         memorySize: 256,
         timeout: Duration.seconds(10),
-        environment: { TABLE_NAME: props.table.tableName },
+        environment: {
+          TABLE_NAME: props.table.tableName,
+          RECEIPTS_BUCKET: props.receiptsBucket.bucketName,
+        },
         bundling: { minify: true },
         logGroup: new LogGroup(this, `${name}Logs`, {
           retention: RetentionDays.ONE_WEEK,
@@ -40,17 +44,21 @@ export class ApiStack extends Stack {
         }),
       });
 
-    const listExpenses = createHandler('ListExpenses', 'list-expenses.ts');
+    const listExpenses = createHandler('ListExpenses', 'expenses/handlers/list-expenses.ts');
     props.table.grantReadData(listExpenses);
 
-    const createExpense = createHandler('CreateExpense', 'create-expense.ts');
+    const createExpense = createHandler('CreateExpense', 'expenses/handlers/create-expense.ts');
     props.table.grantWriteData(createExpense);
 
-    const updateExpense = createHandler('UpdateExpense', 'update-expense.ts');
+    const updateExpense = createHandler('UpdateExpense', 'expenses/handlers/update-expense.ts');
     props.table.grantWriteData(updateExpense);
 
-    const deleteExpense = createHandler('DeleteExpense', 'delete-expense.ts');
+    const deleteExpense = createHandler('DeleteExpense', 'expenses/handlers/delete-expense.ts');
     props.table.grantWriteData(deleteExpense);
+
+    const createReceiptUpload = createHandler('CreateReceiptUpload', 'receipts/handlers/create-receipt-upload.ts');
+    props.table.grantWriteData(createReceiptUpload);
+    props.receiptsBucket.grantPut(createReceiptUpload, 'receipts/*');
 
     const authorizer = new HttpUserPoolAuthorizer('CognitoAuthorizer', props.userPool, {
       userPoolClients: [props.userPoolClient],
@@ -90,6 +98,12 @@ export class ApiStack extends Stack {
       path: '/expenses/{id}',
       methods: [HttpMethod.DELETE],
       integration: new HttpLambdaIntegration('DeleteExpenseIntegration', deleteExpense),
+    });
+
+    api.addRoutes({
+      path: '/receipts',
+      methods: [HttpMethod.POST],
+      integration: new HttpLambdaIntegration('CreateReceiptUploadIntegration', createReceiptUpload),
     });
 
     new CfnOutput(this, 'ApiUrl', { value: api.apiEndpoint });

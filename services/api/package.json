@@ -9,7 +9,9 @@
   "dependencies": {
     "@aws-lambda-powertools/logger": "^2.36.0",
     "@aws-sdk/client-dynamodb": "^3.1161.0",
+    "@aws-sdk/client-s3": "^3.1161.0",
     "@aws-sdk/lib-dynamodb": "^3.1161.0",
+    "@aws-sdk/s3-presigned-post": "^3.1161.0",
     "@receipts-app/contracts": "workspace:*",
     "zod": "^4.6.7"
   },

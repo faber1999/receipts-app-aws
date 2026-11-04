@@ -35,7 +35,7 @@ export class DataStack extends Stack {
       eventBridgeEnabled: true,
       cors: [
         {
-          allowedMethods: [HttpMethods.PUT],
+          allowedMethods: [HttpMethods.POST],
           allowedOrigins: props.allowedOrigins,
           allowedHeaders: ['content-type'],
           maxAge: 3000,

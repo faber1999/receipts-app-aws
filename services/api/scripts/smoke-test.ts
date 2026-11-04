@@ -6,14 +6,37 @@
  *   or from the API_URL environment variable.
  * - The Cognito access token is read from API_TOKEN, or asked for interactively.
  *
- * It creates its own expense and deletes it at the end, so it leaves no data behind.
+ * It creates its own expense and receipt and deletes them at the end. The tiny test photo stays in
+ * the receipts bucket until expenses delete their image (later phase).
  */
 import { execFile } from 'node:child_process';
 import { createInterface } from 'node:readline/promises';
 import { promisify } from 'node:util';
-import { expenseSchema, listExpensesResponseSchema } from '@receipts-app/contracts';
+import { createReceiptUploadResponseSchema, expenseSchema, listExpensesResponseSchema } from '@receipts-app/contracts';
 
 const run = promisify(execFile);
+
+/** A valid 1×1 transparent PNG, small enough to keep the test cheap. */
+const TINY_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+  'base64',
+);
+
+/** Sends a presigned POST to S3: the signed fields first, the file last (S3 requires that order). */
+async function postToS3(
+  url: string,
+  fields: Record<string, string>,
+  file: Blob,
+  contentType: string,
+): Promise<Response> {
+  const form = new FormData();
+  for (const [name, value] of Object.entries({ ...fields, 'Content-Type': contentType })) {
+    form.append(name, value);
+  }
+  form.append('file', file);
+  const response = await fetch(url, { method: 'POST', body: form });
+  return { status: response.status, data: await response.text() };
+}
 
 interface Response {
   status: number;
@@ -162,6 +185,42 @@ async function main(): Promise<void> {
     const after = await check('GET /expenses after delete', 200, () => call('GET', listPath));
     const afterList = listExpensesResponseSchema.safeParse(after?.data);
     assert('deleted expense is gone', afterList.success && !afterList.data.items.some((item) => item.id === id));
+  }
+
+  // --- Receipt upload: pending expense + presigned POST straight to S3 ---
+
+  await check('POST /receipts with an unsupported type is rejected', 400, () =>
+    call('POST', '/receipts', { body: { contentType: 'application/pdf' } }),
+  );
+
+  const receipt = await check('POST /receipts creates a pending receipt', 201, () =>
+    call('POST', '/receipts', { body: { contentType: 'image/png' } }),
+  );
+  const upload = createReceiptUploadResponseSchema.safeParse(receipt?.data);
+
+  if (!upload.success) {
+    assert('receipt upload response matches the contract', false);
+  } else {
+    const { expense: pending, upload: target } = upload.data;
+    assert('new receipt starts as PENDING', pending.status === 'PENDING');
+
+    await check('S3 rejects a file whose type differs from the signed one', 403, () =>
+      postToS3(target.url, target.fields, new Blob([TINY_PNG], { type: 'image/jpeg' }), 'image/jpeg'),
+    );
+
+    await check('S3 accepts the photo with the presigned POST', 204, () =>
+      postToS3(target.url, target.fields, new Blob([TINY_PNG], { type: 'image/png' }), 'image/png'),
+    );
+
+    const withReceipt = await check('GET /expenses shows the pending receipt', 200, () => call('GET', listPath));
+    const receiptList = listExpensesResponseSchema.safeParse(withReceipt?.data);
+    assert(
+      'month list contains the PENDING receipt',
+      receiptList.success &&
+        receiptList.data.items.some((item) => item.id === pending.id && item.status !== 'PROCESSED'),
+    );
+
+    await check('DELETE the pending receipt', 204, () => call('DELETE', `/expenses/${pending.id}`));
   }
 
   for (const result of results) {

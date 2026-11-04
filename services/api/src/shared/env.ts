@@ -4,5 +4,6 @@ import { z } from 'zod';
 export const env = z
   .object({
     TABLE_NAME: z.string().min(1),
+    RECEIPTS_BUCKET: z.string().min(1),
   })
   .parse(process.env);
