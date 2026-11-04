@@ -50,9 +50,15 @@ export const listExpensesResponseSchema = z.object({
   items: z.array(expenseSchema),
 });
 
+/** Query string of GET /expenses: the calendar month to list, e.g. 2026-11. */
+export const listExpensesQuerySchema = z.object({
+  month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
+});
+
 export type ExpenseCategory = z.infer<typeof expenseCategorySchema>;
 export type ExpenseStatus = z.infer<typeof expenseStatusSchema>;
 export type Expense = z.infer<typeof expenseSchema>;
 export type CreateExpenseInput = z.infer<typeof createExpenseInputSchema>;
 export type UpdateExpenseInput = z.infer<typeof updateExpenseInputSchema>;
 export type ListExpensesResponse = z.infer<typeof listExpensesResponseSchema>;
+export type ListExpensesQuery = z.infer<typeof listExpensesQuerySchema>;

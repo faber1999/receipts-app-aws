@@ -103,7 +103,12 @@ async function main(): Promise<void> {
     results.push({ name, expected: 1, actual: condition ? 1 : 0, passed: condition });
   }
 
-  await check('GET /expenses without token is rejected', 401, () => call('GET', '/expenses', { auth: false }));
+  const month = today().slice(0, 7);
+  const listPath = `/expenses?month=${month}`;
+
+  await check('GET /expenses without token is rejected', 401, () => call('GET', listPath, { auth: false }));
+
+  await check('GET /expenses without month is rejected', 400, () => call('GET', '/expenses'));
 
   await check('POST /expenses with invalid body is rejected', 400, () =>
     call('POST', '/expenses', { body: { merchant: '', total: -5, currency: 'pesos', date: 'ayer', category: 'x' } }),
@@ -121,9 +126,18 @@ async function main(): Promise<void> {
   } else {
     const id = expense.data.id;
 
-    const listed = await check('GET /expenses lists expenses', 200, () => call('GET', '/expenses'));
+    const listed = await check('GET /expenses?month lists the month', 200, () => call('GET', listPath));
     const list = listExpensesResponseSchema.safeParse(listed?.data);
-    assert('list contains the new expense', list.success && list.data.items.some((item) => item.id === id));
+    assert('month list contains the new expense', list.success && list.data.items.some((item) => item.id === id));
+
+    const otherMonth = await check('GET /expenses for another month', 200, () =>
+      call('GET', '/expenses?month=2000-01'),
+    );
+    const otherList = listExpensesResponseSchema.safeParse(otherMonth?.data);
+    assert(
+      'another month does not include it',
+      otherList.success && !otherList.data.items.some((item) => item.id === id),
+    );
 
     const updated = await check('PATCH /expenses/{id} updates fields', 200, () =>
       call('PATCH', `/expenses/${id}`, { body: { total: 2500 } }),
@@ -142,7 +156,7 @@ async function main(): Promise<void> {
     await check('DELETE /expenses/{id} deletes it', 204, () => call('DELETE', `/expenses/${id}`));
     await check('DELETE again returns 404', 404, () => call('DELETE', `/expenses/${id}`));
 
-    const after = await check('GET /expenses after delete', 200, () => call('GET', '/expenses'));
+    const after = await check('GET /expenses after delete', 200, () => call('GET', listPath));
     const afterList = listExpensesResponseSchema.safeParse(after?.data);
     assert('deleted expense is gone', afterList.success && !afterList.data.items.some((item) => item.id === id));
   }
