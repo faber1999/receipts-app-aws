@@ -1,8 +1,8 @@
 'use client';
 
-import { fetchUserAttributes, signOut } from 'aws-amplify/auth';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect } from 'react';
+import { useAuth } from '@/features/auth/auth-provider';
 import { createExpense, deleteExpense, listExpenses, updateExpense } from '@/features/expenses/api';
 import { type ExpensesApi, ExpensesWorkspace } from './expenses-workspace';
 
@@ -15,53 +15,23 @@ const expensesApi: ExpensesApi = {
 
 export function ExpensesView() {
   const router = useRouter();
-  const [email, setEmail] = useState<string | null>(null);
-  const [signingOut, setSigningOut] = useState(false);
+  const { auth } = useAuth();
 
   // Client-side guard only: it keeps signed-out visitors off this screen, but the real
-  // protection will be the API rejecting requests without a valid Cognito JWT.
+  // protection is the API rejecting requests without a valid Cognito JWT.
   useEffect(() => {
-    let active = true;
-
-    fetchUserAttributes()
-      .then((attributes) => {
-        if (active) {
-          setEmail(attributes.email ?? '');
-        }
-      })
-      .catch(() => {
-        router.replace('/sign-in');
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [router]);
-
-  async function handleSignOut(): Promise<void> {
-    setSigningOut(true);
-    try {
-      await signOut();
-    } finally {
-      router.push('/');
+    if (auth.status === 'signedOut') {
+      router.replace('/sign-in');
     }
-  }
+  }, [auth.status, router]);
 
   const handleUnauthorized = useCallback(() => {
     router.replace('/sign-in');
   }, [router]);
 
-  if (email === null) {
+  if (auth.status !== 'signedIn') {
     return <section aria-busy="true" className="flex-1" />;
   }
 
-  return (
-    <ExpensesWorkspace
-      email={email}
-      signingOut={signingOut}
-      onSignOut={handleSignOut}
-      api={expensesApi}
-      onUnauthorized={handleUnauthorized}
-    />
-  );
+  return <ExpensesWorkspace api={expensesApi} onUnauthorized={handleUnauthorized} />;
 }

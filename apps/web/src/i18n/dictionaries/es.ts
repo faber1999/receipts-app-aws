@@ -9,6 +9,14 @@ export const es: Dictionary = {
   header: {
     homeLabel: 'Receipts App, inicio',
   },
+  account: {
+    menuLabel: (email: string) => (email ? `Menú de la cuenta, ${email}` : 'Menú de la cuenta'),
+    signedInAs: 'Sesión iniciada como',
+    signIn: 'Iniciar sesión',
+    signOut: 'Cerrar sesión',
+    signingOut: 'Cerrando sesión…',
+    expensesLink: 'Gastos',
+  },
   footer: {
     tagline: 'Proyecto de portafolio construido sobre AWS.',
   },
@@ -92,9 +100,6 @@ export const es: Dictionary = {
   expenses: {
     title: 'Tus gastos',
     description: 'Tus recibos y en qué se va tu dinero, mes a mes.',
-    signedInAs: 'Sesión iniciada como',
-    signOut: 'Cerrar sesión',
-    signingOut: 'Cerrando sesión…',
     addExpense: 'Agregar gasto',
     month: {
       label: 'Mes',

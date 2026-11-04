@@ -111,3 +111,12 @@ export function RefreshIcon(props: IconProps) {
     </Icon>
   );
 }
+
+export function UserIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="8" cy="5.5" r="2.75" />
+      <path d="M2.75 13.5c.6-2.3 2.75-3.75 5.25-3.75s4.65 1.45 5.25 3.75" />
+    </Icon>
+  );
+}

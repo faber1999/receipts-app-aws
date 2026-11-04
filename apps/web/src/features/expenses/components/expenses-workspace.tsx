@@ -25,9 +25,6 @@ export interface ExpensesApi {
 }
 
 export interface ExpensesWorkspaceProps {
-  email: string;
-  signingOut: boolean;
-  onSignOut: () => void;
   api: ExpensesApi;
   /** Called when the API says the session is gone (401 on load). */
   onUnauthorized: () => void;
@@ -47,7 +44,7 @@ function fallbackFocus(): HTMLElement | null {
   );
 }
 
-export function ExpensesWorkspace({ email, signingOut, onSignOut, api, onUnauthorized }: ExpensesWorkspaceProps) {
+export function ExpensesWorkspace({ api, onUnauthorized }: ExpensesWorkspaceProps) {
   const { t, intlLocale } = useI18n();
   const [load, setLoad] = useState<LoadState>({ status: 'loading' });
   const [attempt, setAttempt] = useState(0);
@@ -179,13 +176,7 @@ export function ExpensesWorkspace({ email, signingOut, onSignOut, api, onUnautho
   return (
     <section aria-labelledby="expenses-title" className="flex flex-col gap-8">
       <div className="animate-rise">
-        <ExpensesHeader
-          email={email}
-          signingOut={signingOut}
-          onSignOut={onSignOut}
-          onAdd={openCreate}
-          canAdd={items !== null}
-        />
+        <ExpensesHeader onAdd={openCreate} canAdd={items !== null} />
       </div>
 
       {/* One staggered entrance for the content block; later state swaps use a quiet reveal instead. */}

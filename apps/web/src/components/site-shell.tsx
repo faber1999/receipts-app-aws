@@ -1,8 +1,10 @@
 'use client';
 
 import Link from 'next/link';
+import { AccountMenu } from '@/components/account-menu';
 import { BrandMark } from '@/components/brand-mark';
 import { LanguageSwitcher } from '@/components/language-switcher';
+import { useAuth } from '@/features/auth/auth-provider';
 import { useI18n } from '@/i18n/i18n-provider';
 
 export const MAIN_CONTENT_ID = 'main-content';
@@ -24,19 +26,29 @@ export function SkipLink() {
 
 export function SiteHeader() {
   const { t } = useI18n();
+  const { auth } = useAuth();
 
   return (
     <header className="border-b border-line">
       <div className="mx-auto flex h-16 w-full max-w-5xl items-center justify-between gap-4 px-4 sm:px-6">
         <Link
-          href="/"
+          // Signed in, "home" is the expenses screen.
+          href={auth.status === 'signedIn' ? '/expenses' : '/'}
           className="-mx-2 flex items-center gap-2.5 rounded-md px-2 py-1.5 text-ink no-underline"
           aria-label={t.header.homeLabel}
         >
           <BrandMark />
-          <span className="text-[0.9375rem] font-semibold tracking-tight">Receipts App</span>
+          {/* The link is named by aria-label, so the wordmark can step aside on the narrowest phones (320px),
+              where it would otherwise crowd the account control and the language switcher. */}
+          <span className="text-[0.9375rem] font-semibold tracking-tight whitespace-nowrap max-[22.5rem]:hidden">
+            Receipts App
+          </span>
         </Link>
-        <LanguageSwitcher />
+        {/* `relative` anchors the account panel on small screens (see AccountMenuView). */}
+        <div className="relative flex shrink-0 items-center gap-2 sm:gap-3">
+          <AccountMenu />
+          <LanguageSwitcher />
+        </div>
       </div>
     </header>
   );

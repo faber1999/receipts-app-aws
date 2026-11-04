@@ -7,6 +7,14 @@ export const en = {
   header: {
     homeLabel: 'Receipts App, home',
   },
+  account: {
+    menuLabel: (email: string) => (email ? `Account menu, ${email}` : 'Account menu'),
+    signedInAs: 'Signed in as',
+    signIn: 'Sign in',
+    signOut: 'Sign out',
+    signingOut: 'Signing out…',
+    expensesLink: 'Expenses',
+  },
   footer: {
     tagline: 'Portfolio project built on AWS.',
   },
@@ -89,9 +97,6 @@ export const en = {
   expenses: {
     title: 'Your expenses',
     description: 'Your receipts and where your money went, month by month.',
-    signedInAs: 'Signed in as',
-    signOut: 'Sign out',
-    signingOut: 'Signing out…',
     addExpense: 'Add expense',
     month: {
       label: 'Month',
