@@ -8,10 +8,10 @@ import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { FieldError, TextField } from '@/components/ui/input';
 import { PasswordField } from '@/components/ui/password-field';
+import { type AuthErrorKey, getAuthErrorKey } from '@/features/auth/errors';
+import { type AuthNotice, takeAuthNotice } from '@/features/auth/notice';
+import { firstValidationKey, PENDING_EMAIL_KEY, signInSchema, type ValidationKey } from '@/features/auth/schemas';
 import { useI18n } from '@/i18n/i18n-provider';
-import { type AuthErrorKey, getAuthErrorKey } from '@/lib/auth-errors';
-import { type AuthNotice, takeAuthNotice } from '@/lib/auth-notice';
-import { firstValidationKey, PENDING_EMAIL_KEY, signInSchema, type ValidationKey } from '@/lib/auth-schema';
 
 type FieldErrors = Partial<Record<'email' | 'password', ValidationKey>>;
 

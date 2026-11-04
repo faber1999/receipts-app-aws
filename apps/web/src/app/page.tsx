@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { HomeView } from './home-view';
+import { HomeView } from '@/features/home/components/home-view';
 
 export const metadata: Metadata = {
   title: { absolute: 'Receipts App · Expenses from receipt photos' },

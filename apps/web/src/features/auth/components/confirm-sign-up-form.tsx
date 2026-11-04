@@ -7,16 +7,16 @@ import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { FieldError, TextField } from '@/components/ui/input';
 import { OtpField } from '@/components/ui/otp-input';
-import { useI18n } from '@/i18n/i18n-provider';
-import { type AuthErrorKey, getAuthErrorKey } from '@/lib/auth-errors';
-import { setAuthNotice } from '@/lib/auth-notice';
+import { type AuthErrorKey, getAuthErrorKey } from '@/features/auth/errors';
+import { setAuthNotice } from '@/features/auth/notice';
 import {
   confirmSignUpSchema,
   emailSchema,
   firstValidationKey,
   PENDING_EMAIL_KEY,
   type ValidationKey,
-} from '@/lib/auth-schema';
+} from '@/features/auth/schemas';
+import { useI18n } from '@/i18n/i18n-provider';
 
 type FieldErrors = Partial<Record<'email' | 'code', ValidationKey>>;
 

@@ -1,0 +1,17 @@
+{
+  "name": "@receipts-app/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@aws-lambda-powertools/logger": "^2.36.0",
+    "@aws-sdk/client-dynamodb": "^3.1161.0",
+    "@aws-sdk/lib-dynamodb": "^3.1161.0",
+    "@receipts-app/contracts": "workspace:*",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.164",
+    "@types/node": "^24.19.2"
+  }
+}

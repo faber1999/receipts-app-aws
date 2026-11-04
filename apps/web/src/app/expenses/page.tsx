@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { ExpensesView } from './expenses-view';
+import { ExpensesView } from '@/features/expenses/components/expenses-view';
 
 export const metadata: Metadata = {
   title: 'Your expenses',

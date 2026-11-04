@@ -9,10 +9,15 @@ import { CardDescription } from '@/components/ui/card';
 import { FieldError, TextField } from '@/components/ui/input';
 import { OtpField } from '@/components/ui/otp-input';
 import { PasswordField } from '@/components/ui/password-field';
+import { type AuthErrorKey, getAuthErrorKey } from '@/features/auth/errors';
+import { setAuthNotice } from '@/features/auth/notice';
+import {
+  firstValidationKey,
+  forgotPasswordSchema,
+  resetPasswordSchema,
+  type ValidationKey,
+} from '@/features/auth/schemas';
 import { useI18n } from '@/i18n/i18n-provider';
-import { type AuthErrorKey, getAuthErrorKey } from '@/lib/auth-errors';
-import { setAuthNotice } from '@/lib/auth-notice';
-import { firstValidationKey, forgotPasswordSchema, resetPasswordSchema, type ValidationKey } from '@/lib/auth-schema';
 
 type Step = 'request' | 'reset';
 type FieldErrors = Partial<Record<'email' | 'code' | 'password' | 'confirmPassword', ValidationKey>>;

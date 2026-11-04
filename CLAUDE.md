@@ -90,6 +90,13 @@ receipts-app/
 └─ infra/             # CDK app y stacks
 ```
 
+Organización por feature dentro de cada paquete:
+
+- `packages/contracts/src/<feature>/`: schemas Zod de cada dominio (ej. `expenses/`), reexportados en `index.ts`.
+- `services/api/src/<feature>/`: `handlers/` (un archivo por Lambda) y la lógica del dominio (ej. `expense-repository.ts`); lo común en `shared/`.
+- `apps/web/src/app/`: solo rutas (`page.tsx`, layouts; las de auth en el route group `(auth)`). Componentes y lógica de cada feature en `src/features/<feature>/`; UI compartida en `src/components/` (`ui/` para primitivos); utilidades en `src/lib/`.
+- `infra/lib/stacks/`: un archivo por stack; `infra/lib/edge-functions/`: CloudFront Functions.
+
 Stacks CDK sugeridos: `AuthStack`, `DataStack`, `ApiStack`, `ProcessingStack`, `WebStack`, `NotificationsStack`.
 
 ## Fases

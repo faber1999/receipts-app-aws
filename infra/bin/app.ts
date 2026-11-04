@@ -1,13 +1,22 @@
 import { App, Tags } from 'aws-cdk-lib';
-import { AuthStack } from '../lib/auth-stack';
-import { DataStack } from '../lib/data-stack';
-import { WebStack } from '../lib/web-stack';
+import { ApiStack } from '../lib/stacks/api-stack';
+import { AuthStack } from '../lib/stacks/auth-stack';
+import { DataStack } from '../lib/stacks/data-stack';
+import { WebStack } from '../lib/stacks/web-stack';
 
 const app = new App();
 Tags.of(app).add('project', 'receipts-app');
 
 const env = { account: process.env.CDK_DEFAULT_ACCOUNT, region: 'us-east-2' };
 
-new AuthStack(app, 'AuthStack', { env });
+const auth = new AuthStack(app, 'AuthStack', { env });
+const data = new DataStack(app, 'DataStack', { env });
 new WebStack(app, 'WebStack', { env });
-new DataStack(app, 'DataStack', { env });
+
+new ApiStack(app, 'ApiStack', {
+  env,
+  userPool: auth.userPool,
+  userPoolClient: auth.webClient,
+  table: data.table,
+  allowedOrigins: ['http://localhost:3000', 'https://d320g8bknug8ck.cloudfront.net'],
+});

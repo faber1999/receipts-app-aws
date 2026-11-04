@@ -15,7 +15,7 @@ import { BlockPublicAccess, Bucket, BucketEncryption } from 'aws-cdk-lib/aws-s3'
 import { BucketDeployment, Source } from 'aws-cdk-lib/aws-s3-deployment';
 import type { Construct } from 'constructs';
 
-const WEB_BUILD_DIR = join(import.meta.dirname, '../../apps/web/out');
+const WEB_BUILD_DIR = join(import.meta.dirname, '../../../apps/web/out');
 
 export class WebStack extends Stack {
   constructor(scope: Construct, id: string, props?: StackProps) {
@@ -30,7 +30,7 @@ export class WebStack extends Stack {
     });
 
     const urlRewrite = new CloudFrontFunction(this, 'UrlRewriteFunction', {
-      code: FunctionCode.fromFile({ filePath: join(import.meta.dirname, 'functions/url-rewrite.js') }),
+      code: FunctionCode.fromFile({ filePath: join(import.meta.dirname, '../edge-functions/url-rewrite.js') }),
       runtime: FunctionRuntime.JS_2_0,
       comment: 'Maps clean URLs to the static export .html files',
     });

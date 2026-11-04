@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { SignUpView } from './sign-up-view';
+import { SignUpView } from '@/features/auth/components/sign-up-view';
 
 export const metadata: Metadata = {
   title: 'Create account',

@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { ConfirmSignUpView } from './confirm-sign-up-view';
+import { ConfirmSignUpView } from '@/features/auth/components/confirm-sign-up-view';
 
 export const metadata: Metadata = {
   title: 'Confirm your email',
