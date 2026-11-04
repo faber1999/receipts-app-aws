@@ -8,6 +8,9 @@
 //
 // This script flattens those folders back into the expected file names. On Linux/macOS the
 // export is already correct and there is nothing to fix, so it's a no-op.
+//
+// Upstream: https://github.com/vercel/next.js/issues/85374 (fix proposed in PR #92340).
+// Delete this script once a Next.js release includes the fix.
 import { readdir, rename, rm, stat } from 'node:fs/promises';
 import { join, relative, sep } from 'node:path';
 
