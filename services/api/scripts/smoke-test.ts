@@ -143,7 +143,10 @@ async function main(): Promise<void> {
       call('PATCH', `/expenses/${id}`, { body: { total: 2500 } }),
     );
     const updatedExpense = expenseSchema.safeParse(updated?.data);
-    assert('updated total is returned', updatedExpense.success && updatedExpense.data.total === 2500);
+    assert(
+      'updated total is returned',
+      updatedExpense.success && updatedExpense.data.status === 'PROCESSED' && updatedExpense.data.total === 2500,
+    );
 
     await check('PATCH /expenses/{id} with empty body is rejected', 400, () =>
       call('PATCH', `/expenses/${id}`, { body: {} }),

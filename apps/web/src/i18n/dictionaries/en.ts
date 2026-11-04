@@ -110,10 +110,13 @@ export const en = {
       byCategory: 'By category',
       empty: 'Nothing recorded this month.',
       mixedCurrencies: 'This month has expenses in more than one currency, so each one is totaled on its own.',
-      failedExcluded: (count: number) =>
+      awaitingTotals: 'Your total will show here once your receipts are read.',
+      pendingNote: (count: number) =>
+        count === 1 ? '1 receipt processing, not counted yet' : `${count} receipts processing, not counted yet`,
+      failedNote: (count: number) =>
         count === 1
-          ? '1 receipt failed to process and isn’t counted.'
-          : `${count} receipts failed to process and aren’t counted.`,
+          ? '1 receipt couldn’t be read and isn’t counted'
+          : `${count} receipts couldn’t be read and aren’t counted`,
       shareOfTotal: (percent: string) => `${percent} of the total`,
     },
     list: {
@@ -131,6 +134,11 @@ export const en = {
       delete: 'Delete',
       editLabel: (merchant: string) => `Edit ${merchant}`,
       deleteLabel: (merchant: string) => `Delete ${merchant}`,
+      pendingTitle: 'Processing receipt…',
+      failedTitle: 'Couldn’t read this receipt',
+      failedHint: 'Delete it and add the expense manually.',
+      noTotal: { PENDING: 'No total yet', FAILED: 'No total' },
+      receiptDeleteLabel: (date: string) => `Delete the receipt uploaded ${date}`,
     },
     empty: {
       title: (month: string) => `No expenses in ${month}`,
@@ -168,12 +176,16 @@ export const en = {
         `The ${total} expense from ${date} will be removed. This can’t be undone.`,
       cancel: 'Cancel',
       confirm: 'Delete expense',
+      receiptTitle: 'Delete this receipt?',
+      receiptDescription: (date: string) => `This receipt (uploaded ${date}) will be removed. This can’t be undone.`,
+      confirmReceipt: 'Delete receipt',
       deleting: 'Deleting…',
     },
     toast: {
       added: 'Expense added',
       updated: 'Changes saved',
       deleted: 'Expense deleted',
+      receiptDeleted: 'Receipt deleted',
     },
     apiErrors: {
       invalid: 'Some details weren’t accepted. Check them and try again.',
@@ -193,11 +205,6 @@ export const en = {
     shopping: 'Shopping',
     services: 'Services',
     other: 'Other',
-  },
-  expenseStatus: {
-    PENDING: 'Processing',
-    PROCESSED: 'Processed',
-    FAILED: 'Failed',
   },
   confirmSignUp: {
     title: 'Confirm your email',

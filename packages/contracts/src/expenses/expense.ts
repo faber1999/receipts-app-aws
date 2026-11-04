@@ -19,20 +19,32 @@ export const expenseStatusSchema = z.enum(['PENDING', 'PROCESSED', 'FAILED']);
 /** ISO 4217 code, e.g. COP or USD. */
 export const currencySchema = z.string().regex(/^[A-Z]{3}$/);
 
-export const expenseSchema = z.object({
+const expenseBaseSchema = z.object({
   id: z.uuid(),
-  merchant: z.string().trim().min(1).max(120),
-  total: z.number().nonnegative(),
-  currency: currencySchema,
+  /** Receipt date once processed; the upload date while pending, so it lists in the current month. */
   date: z.iso.date(),
-  category: expenseCategorySchema,
-  status: expenseStatusSchema,
   imageKey: z.string().optional(),
   createdAt: z.iso.datetime(),
 });
 
-/** Body of POST /expenses. The API fills id, status and createdAt. */
-export const createExpenseInputSchema = expenseSchema.pick({
+export const processedExpenseSchema = expenseBaseSchema.extend({
+  status: z.literal('PROCESSED'),
+  merchant: z.string().trim().min(1).max(120),
+  total: z.number().nonnegative(),
+  currency: currencySchema,
+  category: expenseCategorySchema,
+});
+
+/** A receipt that was uploaded and is waiting for (or failed) extraction: no expense data yet. */
+export const unprocessedExpenseSchema = expenseBaseSchema.extend({
+  status: z.enum(['PENDING', 'FAILED']),
+  imageKey: z.string(),
+});
+
+export const expenseSchema = z.discriminatedUnion('status', [processedExpenseSchema, unprocessedExpenseSchema]);
+
+/** Body of POST /expenses (manual entry). The API fills id, status and createdAt. */
+export const createExpenseInputSchema = processedExpenseSchema.pick({
   merchant: true,
   total: true,
   currency: true,
@@ -40,7 +52,6 @@ export const createExpenseInputSchema = expenseSchema.pick({
   category: true,
 });
 
-/** Body of PATCH /expenses/{id}: any subset of the editable fields. */
 /** Body of PATCH /expenses/{id}: any non-empty subset of the editable fields. */
 export const updateExpenseInputSchema = createExpenseInputSchema
   .partial()
@@ -57,6 +68,8 @@ export const listExpensesQuerySchema = z.object({
 
 export type ExpenseCategory = z.infer<typeof expenseCategorySchema>;
 export type ExpenseStatus = z.infer<typeof expenseStatusSchema>;
+export type ProcessedExpense = z.infer<typeof processedExpenseSchema>;
+export type UnprocessedExpense = z.infer<typeof unprocessedExpenseSchema>;
 export type Expense = z.infer<typeof expenseSchema>;
 export type CreateExpenseInput = z.infer<typeof createExpenseInputSchema>;
 export type UpdateExpenseInput = z.infer<typeof updateExpenseInputSchema>;

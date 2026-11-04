@@ -1,6 +1,6 @@
 'use client';
 
-import type { CreateExpenseInput, Expense, UpdateExpenseInput } from '@receipts-app/contracts';
+import type { CreateExpenseInput, Expense, ProcessedExpense, UpdateExpenseInput } from '@receipts-app/contracts';
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { Toast } from '@/components/ui/toast';
 import type { Dictionary } from '@/i18n/dictionaries';
@@ -11,6 +11,7 @@ import { formatMonth } from '../format';
 import { currentMonthKey, type MonthKey, monthKeyOf, shiftMonth, summarizeMonth } from '../month';
 import { MonthExpensesStore } from '../month-store';
 import { changedFields } from '../schemas';
+import { isProcessed } from '../status';
 import { DeleteExpenseDialog } from './delete-expense-dialog';
 import { ExpenseFormDialog, type ExpenseFormTarget } from './expense-form-dialog';
 import { EXPENSE_LIST_TITLE_ID, ExpenseList } from './expense-list';
@@ -95,7 +96,11 @@ export function ExpensesWorkspace({ api, onUnauthorized }: ExpensesWorkspaceProp
   const thisMonth = currentMonthKey();
   const summary = useMemo(() => summarizeMonth(items ?? []), [items]);
   // One display for every row of the month (and its delete dialog), so amounts compare at a glance.
-  const moneyDisplay = useMemo(() => moneyDisplayFor((items ?? []).map((expense) => expense.currency)), [items]);
+  // Unprocessed receipts have no currency yet, so only processed ones decide it.
+  const moneyDisplay = useMemo(
+    () => moneyDisplayFor((items ?? []).filter(isProcessed).map((expense) => expense.currency)),
+    [items],
+  );
   const monthLabel = formatMonth(month, intlLocale);
 
   function openCreate(): void {
@@ -104,7 +109,7 @@ export function ExpensesWorkspace({ api, onUnauthorized }: ExpensesWorkspaceProp
     setFormOpen(true);
   }
 
-  function openEdit(expense: Expense): void {
+  function openEdit(expense: ProcessedExpense): void {
     setFormTarget({ mode: 'edit', expense });
     setFormSession((session) => session + 1);
     setFormOpen(true);
@@ -158,7 +163,7 @@ export function ExpensesWorkspace({ api, onUnauthorized }: ExpensesWorkspaceProp
     }
     store.apply({ type: 'remove', id: expense.id });
     setDeleteOpen(false);
-    showToast('deleted');
+    showToast(isProcessed(expense) ? 'deleted' : 'receiptDeleted');
   }
 
   function retry(): void {

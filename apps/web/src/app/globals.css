@@ -269,6 +269,19 @@
   --toast-blur: var(--blur-small);
   --toast-scale: 0.97;
   --toast-ease: var(--ease-smooth-out);
+
+  /*
+   * Shimmer text (transitions.dev shimmer recipe), used by the "Processing
+   * receipt…" label of a PENDING row. A highlight band sweeps the glyphs on a
+   * linear loop; the base color alone already passes AA (ink-muted, 7:1 on
+   * surface), so the sweep only adds life. Reduced motion stops it entirely
+   * (an infinite loop must not be squeezed to 1ms, it would flicker).
+   */
+  --shimmer-dur: 2000ms;
+  --shimmer-base: var(--color-ink-muted);
+  --shimmer-highlight: var(--color-ink);
+  --shimmer-band: 400%;
+  --shimmer-ease: linear;
 }
 
 @layer components {
@@ -375,6 +388,48 @@
   }
 }
 
+@layer components {
+  /* Duplicate the visible string into data-text; the ::before copy carries the band. */
+  .t-shimmer {
+    position: relative;
+    display: inline-block;
+    color: var(--shimmer-base);
+  }
+
+  .t-shimmer::before {
+    /* Empty alt text keeps the decorative copy out of the accessibility tree; a browser
+       without the alt syntax drops the rule and simply shows the static base text. */
+    content: attr(data-text) / "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image: linear-gradient(
+      90deg,
+      transparent 0%,
+      transparent 40%,
+      var(--shimmer-highlight) 50%,
+      transparent 60%,
+      transparent 100%
+    );
+    background-size: var(--shimmer-band) 100%;
+    background-repeat: no-repeat;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+    animation: t-shimmer var(--shimmer-dur) var(--shimmer-ease) infinite;
+  }
+}
+
+@keyframes t-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: 0% 0;
+  }
+}
+
 /* Torn-paper bottom edge for receipt surfaces (the brand's signature shape). */
 @utility receipt-edge {
   --zigzag: 8px;
@@ -470,6 +525,11 @@
   .t-dropdown {
     /* biome-ignore lint/complexity/noImportantStyles: the recipes' required reduced-motion guard */
     transition: none !important;
+  }
+
+  .t-shimmer::before {
+    /* biome-ignore lint/complexity/noImportantStyles: the recipe's required reduced-motion guard */
+    animation: none !important;
   }
 
   *,

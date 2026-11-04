@@ -9,6 +9,7 @@ import { useI18n } from '@/i18n/i18n-provider';
 import { formatMoney, type MoneyDisplay } from '@/lib/money';
 import { type ExpenseErrorKey, getExpenseErrorKey } from '../errors';
 import { formatLongDate } from '../format';
+import { isProcessed } from '../status';
 
 export interface DeleteExpenseDialogProps {
   open: boolean;
@@ -59,13 +60,18 @@ export function DeleteExpenseDialog({
     onClose();
   }
 
-  const title = expense ? copy.title(expense.merchant) : '';
-  const description = expense
+  // A processed expense is named by merchant and total; a receipt not read yet only by its upload date.
+  const processed = expense && isProcessed(expense) ? expense : null;
+  const title = processed ? copy.title(processed.merchant) : expense ? copy.receiptTitle : '';
+  const description = processed
     ? copy.description(
-        formatMoney(expense.total, expense.currency, intlLocale, { display: moneyDisplay }),
-        formatLongDate(expense.date, intlLocale),
+        formatMoney(processed.total, processed.currency, intlLocale, { display: moneyDisplay }),
+        formatLongDate(processed.date, intlLocale),
       )
-    : '';
+    : expense
+      ? copy.receiptDescription(formatLongDate(expense.date, intlLocale))
+      : '';
+  const confirmLabel = expense && !processed ? copy.confirmReceipt : copy.confirm;
 
   return (
     <Dialog
@@ -91,7 +97,7 @@ export function DeleteExpenseDialog({
           {copy.cancel}
         </Button>
         <Button variant="danger" disabled={deleting} onClick={handleConfirm}>
-          {deleting ? copy.deleting : copy.confirm}
+          {deleting ? copy.deleting : confirmLabel}
         </Button>
       </DialogFooter>
     </Dialog>

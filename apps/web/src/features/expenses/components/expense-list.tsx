@@ -1,13 +1,14 @@
 'use client';
 
-import type { Expense } from '@receipts-app/contracts';
+import type { Expense, ProcessedExpense, UnprocessedExpense } from '@receipts-app/contracts';
 import { PencilIcon, TrashIcon } from '@/components/icons';
 import { IconButton } from '@/components/ui/icon-button';
 import { useI18n } from '@/i18n/i18n-provider';
 import { cn } from '@/lib/cn';
 import { formatMoney, type MoneyDisplay } from '@/lib/money';
-import { formatRowDate } from '../format';
-import { StatusBadge } from './status-badge';
+import { formatLongDate, formatRowDate } from '../format';
+import { isProcessed } from '../status';
+import { ReceiptStatus } from './receipt-status';
 
 export const EXPENSE_LIST_TITLE_ID = 'expense-list-title';
 
@@ -19,7 +20,8 @@ export interface ExpenseListProps {
   /** Row that was just saved; it gets a short highlight wash. */
   highlightId: string | null;
   onHighlightEnd: () => void;
-  onEdit: (expense: Expense) => void;
+  /** Only offered on PROCESSED rows: an unprocessed receipt has nothing to edit yet. */
+  onEdit: (expense: ProcessedExpense) => void;
   onDelete: (expense: Expense) => void;
 }
 
@@ -90,16 +92,30 @@ export function ExpenseList({
                 <td className="py-3 pr-3 pl-6 whitespace-nowrap text-ink-muted tabular-nums">
                   <time dateTime={expense.date}>{formatRowDate(expense.date, intlLocale)}</time>
                 </td>
-                <td className="px-3 py-3">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <span className="truncate font-medium text-ink">{expense.merchant}</span>
-                    <StatusBadge status={expense.status} />
-                  </div>
-                </td>
-                <td className="truncate px-3 py-3 text-ink-muted">{t.categories[expense.category]}</td>
-                <td className="px-3 py-3 text-right font-medium whitespace-nowrap text-ink tabular-nums">
-                  {formatMoney(expense.total, expense.currency, intlLocale, { display: moneyDisplay })}
-                </td>
+                {isProcessed(expense) ? (
+                  <>
+                    <td className="truncate px-3 py-3 font-medium text-ink">{expense.merchant}</td>
+                    <td className="truncate px-3 py-3 text-ink-muted">{t.categories[expense.category]}</td>
+                    <td className="px-3 py-3 text-right font-medium whitespace-nowrap text-ink tabular-nums">
+                      {formatMoney(expense.total, expense.currency, intlLocale, { display: moneyDisplay })}
+                    </td>
+                  </>
+                ) : (
+                  <>
+                    {/* No merchant or category yet: the status spans both; date, total and actions keep their columns. */}
+                    <td colSpan={2} className="px-3 py-3">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <ReceiptStatus status={expense.status} />
+                        {expense.status === 'FAILED' ? (
+                          <span className="min-w-0 truncate text-ink-muted">{list.failedHint}</span>
+                        ) : null}
+                      </div>
+                    </td>
+                    <td className="px-3 py-3 text-right">
+                      <NoTotal status={expense.status} />
+                    </td>
+                  </>
+                )}
                 <td className="py-2 pr-5 pl-3">
                   <RowActions expense={expense} onEdit={onEdit} onDelete={onDelete} />
                 </td>
@@ -118,20 +134,38 @@ export function ExpenseList({
                 expense.id === highlightId && 'animate-highlight',
               )}
             >
-              <p className="truncate pt-1.5 font-medium text-ink">{expense.merchant}</p>
-              <p className="pt-1.5 pr-1 text-right font-medium whitespace-nowrap text-ink tabular-nums">
-                {formatMoney(expense.total, expense.currency, intlLocale, { display: moneyDisplay })}
-              </p>
-              {/* Chips instead of a dot separator, so the line wraps cleanly at 320px. */}
-              <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5 text-sm text-ink-muted">
-                <time dateTime={expense.date} className="whitespace-nowrap tabular-nums">
-                  {formatRowDate(expense.date, intlLocale)}
-                </time>
-                <span className="truncate rounded-xs bg-surface-muted px-1.5 text-xs leading-5 text-ink-muted">
-                  {t.categories[expense.category]}
-                </span>
-                <StatusBadge status={expense.status} />
-              </div>
+              {isProcessed(expense) ? (
+                <>
+                  <p className="truncate pt-1.5 font-medium text-ink">{expense.merchant}</p>
+                  <p className="pt-1.5 pr-1 text-right font-medium whitespace-nowrap text-ink tabular-nums">
+                    {formatMoney(expense.total, expense.currency, intlLocale, { display: moneyDisplay })}
+                  </p>
+                  {/* Chips instead of a dot separator, so the line wraps cleanly at 320px. */}
+                  <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5 text-sm text-ink-muted">
+                    <time dateTime={expense.date} className="whitespace-nowrap tabular-nums">
+                      {formatRowDate(expense.date, intlLocale)}
+                    </time>
+                    <span className="truncate rounded-xs bg-surface-muted px-1.5 text-xs leading-5 text-ink-muted">
+                      {t.categories[expense.category]}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex min-w-0 pt-1.5">
+                    <ReceiptStatus status={expense.status} />
+                  </div>
+                  <p className="pt-1.5 pr-1 text-right">
+                    <NoTotal status={expense.status} />
+                  </p>
+                  <div className="flex min-w-0 flex-col gap-0.5 text-sm text-ink-muted">
+                    <time dateTime={expense.date} className="whitespace-nowrap tabular-nums">
+                      {formatRowDate(expense.date, intlLocale)}
+                    </time>
+                    {expense.status === 'FAILED' ? <span>{list.failedHint}</span> : null}
+                  </div>
+                </>
+              )}
               <RowActions expense={expense} onEdit={onEdit} onDelete={onDelete} />
             </li>
           ))}
@@ -141,28 +175,53 @@ export function ExpenseList({
   );
 }
 
+/**
+ * Total cell of a receipt with no amount yet: a dash holds the column's right edge,
+ * and assistive tech hears why it is empty.
+ */
+function NoTotal({ status }: { status: UnprocessedExpense['status'] }) {
+  const { t } = useI18n();
+
+  return (
+    <>
+      <span aria-hidden="true" className="text-ink-subtle">
+        –
+      </span>
+      <span className="sr-only">{t.expenses.list.noTotal[status]}</span>
+    </>
+  );
+}
+
 interface RowActionsProps {
   expense: Expense;
-  onEdit: (expense: Expense) => void;
+  onEdit: (expense: ProcessedExpense) => void;
   onDelete: (expense: Expense) => void;
 }
 
+/** Edit only for PROCESSED; delete for every status. Right-aligned, so delete keeps its place either way. */
 function RowActions({ expense, onEdit, onDelete }: RowActionsProps) {
-  const { t } = useI18n();
+  const { t, intlLocale } = useI18n();
   const { list } = t.expenses;
+  const processed = isProcessed(expense) ? expense : null;
 
   return (
     <div className="flex items-center justify-end gap-2">
+      {processed ? (
+        <IconButton
+          label={list.editLabel(processed.merchant)}
+          tooltip={list.edit}
+          tooltipSide="top"
+          onClick={() => onEdit(processed)}
+        >
+          <PencilIcon />
+        </IconButton>
+      ) : null}
       <IconButton
-        label={list.editLabel(expense.merchant)}
-        tooltip={list.edit}
-        tooltipSide="top"
-        onClick={() => onEdit(expense)}
-      >
-        <PencilIcon />
-      </IconButton>
-      <IconButton
-        label={list.deleteLabel(expense.merchant)}
+        label={
+          processed
+            ? list.deleteLabel(processed.merchant)
+            : list.receiptDeleteLabel(formatLongDate(expense.date, intlLocale))
+        }
         tooltip={list.delete}
         tooltipSide="top"
         tooltipAlign="end"

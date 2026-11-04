@@ -113,10 +113,13 @@ export const es: Dictionary = {
       byCategory: 'Por categoría',
       empty: 'No hay nada registrado este mes.',
       mixedCurrencies: 'Este mes tiene gastos en más de una moneda, así que cada una se suma por separado.',
-      failedExcluded: (count: number) =>
+      awaitingTotals: 'Tu total aparecerá aquí cuando se lean tus recibos.',
+      pendingNote: (count: number) =>
+        count === 1 ? '1 recibo procesándose, aún no se cuenta' : `${count} recibos procesándose, aún no se cuentan`,
+      failedNote: (count: number) =>
         count === 1
-          ? '1 recibo no se pudo procesar y no se cuenta.'
-          : `${count} recibos no se pudieron procesar y no se cuentan.`,
+          ? '1 recibo no se pudo leer y no se cuenta'
+          : `${count} recibos no se pudieron leer y no se cuentan`,
       shareOfTotal: (percent: string) => `${percent} del total`,
     },
     list: {
@@ -134,6 +137,11 @@ export const es: Dictionary = {
       delete: 'Eliminar',
       editLabel: (merchant: string) => `Editar ${merchant}`,
       deleteLabel: (merchant: string) => `Eliminar ${merchant}`,
+      pendingTitle: 'Procesando recibo…',
+      failedTitle: 'No pudimos leer este recibo',
+      failedHint: 'Elimínalo y agrega el gasto manualmente.',
+      noTotal: { PENDING: 'Aún sin total', FAILED: 'Sin total' },
+      receiptDeleteLabel: (date: string) => `Eliminar el recibo subido el ${date}`,
     },
     empty: {
       // Month names are lowercase mid-sentence in Spanish ("noviembre de 2026").
@@ -171,12 +179,17 @@ export const es: Dictionary = {
         `Se eliminará el gasto de ${total} del ${date}. Esta acción no se puede deshacer.`,
       cancel: 'Cancelar',
       confirm: 'Eliminar gasto',
+      receiptTitle: '¿Eliminar este recibo?',
+      receiptDescription: (date: string) =>
+        `Se eliminará este recibo (subido el ${date}). Esta acción no se puede deshacer.`,
+      confirmReceipt: 'Eliminar recibo',
       deleting: 'Eliminando…',
     },
     toast: {
       added: 'Gasto agregado',
       updated: 'Cambios guardados',
       deleted: 'Gasto eliminado',
+      receiptDeleted: 'Recibo eliminado',
     },
     apiErrors: {
       invalid: 'Algunos datos no fueron aceptados. Revísalos e inténtalo de nuevo.',
@@ -196,11 +209,6 @@ export const es: Dictionary = {
     shopping: 'Compras',
     services: 'Servicios',
     other: 'Otros',
-  },
-  expenseStatus: {
-    PENDING: 'Procesando',
-    PROCESSED: 'Procesado',
-    FAILED: 'Falló',
   },
   confirmSignUp: {
     title: 'Confirma tu correo',

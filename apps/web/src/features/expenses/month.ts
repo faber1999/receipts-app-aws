@@ -1,4 +1,5 @@
 import type { Expense, ExpenseCategory } from '@receipts-app/contracts';
+import { isProcessed } from './status';
 
 /** Calendar month as YYYY-MM. */
 export type MonthKey = string;
@@ -63,19 +64,23 @@ export interface CurrencySummary {
 }
 
 export interface MonthSummary {
-  /** One entry per currency: amounts in different currencies are never added together. */
+  /** One entry per currency, PROCESSED expenses only: amounts in different currencies are never added together. */
   currencies: CurrencySummary[];
-  /** FAILED receipts carry no reliable amount, so they are left out of the totals. */
+  /** Receipts still being read; they have no amount yet, so they are left out of the totals. */
+  pendingCount: number;
+  /** Receipts that could not be read; no amount, so they are left out of the totals. */
   failedCount: number;
 }
 
 export function summarizeMonth(expenses: readonly Expense[]): MonthSummary {
   const byCurrency = new Map<string, { total: number; count: number; categories: Map<ExpenseCategory, number> }>();
+  let pendingCount = 0;
   let failedCount = 0;
 
   for (const expense of expenses) {
-    if (expense.status === 'FAILED') {
-      failedCount += 1;
+    if (!isProcessed(expense)) {
+      if (expense.status === 'PENDING') pendingCount += 1;
+      else failedCount += 1;
       continue;
     }
     let group = byCurrency.get(expense.currency);
@@ -99,5 +104,5 @@ export function summarizeMonth(expenses: readonly Expense[]): MonthSummary {
     }))
     .sort((a, b) => b.count - a.count || a.currency.localeCompare(b.currency));
 
-  return { currencies, failedCount };
+  return { currencies, pendingCount, failedCount };
 }

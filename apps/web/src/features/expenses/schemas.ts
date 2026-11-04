@@ -1,7 +1,7 @@
 import {
   type CreateExpenseInput,
   createExpenseInputSchema,
-  type Expense,
+  type ProcessedExpense,
   type UpdateExpenseInput,
 } from '@receipts-app/contracts';
 import type { Dictionary } from '@/i18n/dictionaries';
@@ -72,7 +72,7 @@ export function parseExpenseForm(formData: FormData): ParsedExpenseForm {
 }
 
 /** Only the fields that changed, so a PATCH never rewrites what the user did not touch. */
-export function changedFields(expense: Expense, input: CreateExpenseInput): UpdateExpenseInput {
+export function changedFields(expense: ProcessedExpense, input: CreateExpenseInput): UpdateExpenseInput {
   const changes: UpdateExpenseInput = {};
   if (input.merchant !== expense.merchant) changes.merchant = input.merchant;
   if (input.total !== expense.total) changes.total = input.total;

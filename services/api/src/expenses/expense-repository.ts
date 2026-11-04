@@ -4,13 +4,18 @@ export const userPk = (userId: string): string => `USER#${userId}`;
 export const receiptSk = (expenseId: string): string => `RECEIPT#${expenseId}`;
 export const dateSk = (date: string): string => `DATE#${date}`;
 
-/** An expense as stored in the single table: the contract plus the key attributes. */
-export interface ExpenseItem extends Expense {
+interface ExpenseKeys {
   PK: string;
   SK: string;
   GSI1PK: string;
   GSI1SK: string;
 }
+
+/**
+ * An expense as stored in the single table: the contract plus the key attributes.
+ * A type intersection (not `interface extends`) because Expense is a union of statuses.
+ */
+export type ExpenseItem = Expense & ExpenseKeys;
 
 export function toItem(userId: string, expense: Expense): ExpenseItem {
   return {

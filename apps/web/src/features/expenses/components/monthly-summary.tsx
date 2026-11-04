@@ -1,7 +1,7 @@
 'use client';
 
 import { useId } from 'react';
-import { AlertIcon } from '@/components/icons';
+import { AlertIcon, ClockIcon } from '@/components/icons';
 import { useI18n } from '@/i18n/i18n-provider';
 import { formatMoney, type MoneyDisplay, moneyDisplayFor } from '@/lib/money';
 import type { CurrencySummary, MonthSummary } from '../month';
@@ -14,14 +14,17 @@ export interface MonthlySummaryProps {
 
 export function MonthlySummary({ summary }: MonthlySummaryProps) {
   const { t } = useI18n();
-  const { currencies, failedCount } = summary;
+  const { currencies, pendingCount, failedCount } = summary;
   const mixed = currencies.length > 1;
   const display = moneyDisplayFor(currencies.map((group) => group.currency));
+  const copy = t.expenses.summary;
 
   return (
-    <section aria-label={t.expenses.summary.label} className="rounded-lg bg-surface shadow-md">
+    <section aria-label={copy.label} className="rounded-lg bg-surface shadow-md">
       {currencies.length === 0 ? (
-        <p className="px-5 py-8 text-sm text-ink-muted sm:px-6">{t.expenses.summary.empty}</p>
+        <p className="px-5 py-8 text-sm text-ink-muted sm:px-6">
+          {pendingCount > 0 ? copy.awaitingTotals : copy.empty}
+        </p>
       ) : (
         <>
           {mixed ? (
@@ -35,11 +38,22 @@ export function MonthlySummary({ summary }: MonthlySummaryProps) {
         </>
       )}
 
-      {failedCount > 0 ? (
-        <p className="flex items-start gap-1.5 border-t border-line px-5 py-3 text-sm text-ink-muted sm:px-6">
-          <AlertIcon className="mt-0.5 text-danger" />
-          {t.expenses.summary.failedExcluded(failedCount)}
-        </p>
+      {/* Receipts without an amount are named, never silently dropped from the totals. */}
+      {pendingCount > 0 || failedCount > 0 ? (
+        <ul className="flex flex-wrap gap-x-6 gap-y-1.5 border-t border-line px-5 py-3 text-sm text-ink-muted sm:px-6">
+          {pendingCount > 0 ? (
+            <li className="flex items-start gap-1.5">
+              <ClockIcon className="mt-0.5 text-ink-subtle" />
+              <span className="tabular-nums">{copy.pendingNote(pendingCount)}</span>
+            </li>
+          ) : null}
+          {failedCount > 0 ? (
+            <li className="flex items-start gap-1.5">
+              <AlertIcon className="mt-0.5 text-danger" />
+              <span className="tabular-nums">{copy.failedNote(failedCount)}</span>
+            </li>
+          ) : null}
+        </ul>
       ) : null}
     </section>
   );

@@ -1,6 +1,6 @@
 'use client';
 
-import { type CreateExpenseInput, EXPENSE_CATEGORIES, type Expense } from '@receipts-app/contracts';
+import { type CreateExpenseInput, EXPENSE_CATEGORIES, type ProcessedExpense } from '@receipts-app/contracts';
 import { type SubmitEvent, useId, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogBody, DialogFooter } from '@/components/ui/dialog';
@@ -18,7 +18,8 @@ import {
   parseExpenseForm,
 } from '../schemas';
 
-export type ExpenseFormTarget = { mode: 'create' } | { mode: 'edit'; expense: Expense };
+/** Only a PROCESSED expense has the fields the form edits; an unprocessed receipt can only be deleted. */
+export type ExpenseFormTarget = { mode: 'create' } | { mode: 'edit'; expense: ProcessedExpense };
 
 export interface ExpenseFormDialogProps {
   open: boolean;
@@ -61,7 +62,7 @@ export function ExpenseFormDialog({ open, target, session, onClose, onSave, fall
 }
 
 interface ExpenseFormProps {
-  expense: Expense | null;
+  expense: ProcessedExpense | null;
   saving: boolean;
   setSaving: (saving: boolean) => void;
   onCancel: () => void;
