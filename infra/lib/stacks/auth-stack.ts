@@ -1,4 +1,4 @@
-import { CfnOutput, RemovalPolicy, Stack, type StackProps } from 'aws-cdk-lib';
+import { CfnOutput, Duration, RemovalPolicy, Stack, type StackProps } from 'aws-cdk-lib';
 import { AccountRecovery, FeaturePlan, UserPool, type UserPoolClient } from 'aws-cdk-lib/aws-cognito';
 import type { Construct } from 'constructs';
 
@@ -34,6 +34,9 @@ export class AuthStack extends Stack {
       generateSecret: false,
       preventUserExistenceErrors: true,
       disableOAuth: true,
+      accessTokenValidity: Duration.hours(1),
+      refreshTokenValidity: Duration.days(7),
+      enableTokenRevocation: true,
     });
 
     new CfnOutput(this, 'UserPoolId', { value: this.userPool.userPoolId });

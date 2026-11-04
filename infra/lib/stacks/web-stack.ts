@@ -6,7 +6,10 @@ import {
   FunctionCode,
   FunctionEventType,
   FunctionRuntime,
+  HeadersFrameOption,
+  HeadersReferrerPolicy,
   PriceClass,
+  ResponseHeadersPolicy,
   ViewerProtocolPolicy,
 } from 'aws-cdk-lib/aws-cloudfront';
 import { S3BucketOrigin } from 'aws-cdk-lib/aws-cloudfront-origins';
@@ -17,8 +20,13 @@ import type { Construct } from 'constructs';
 
 const WEB_BUILD_DIR = join(import.meta.dirname, '../../../apps/web/out');
 
+export interface WebStackProps extends StackProps {
+  /** Origins the site may call with fetch: the API and Cognito. */
+  apiUrl: string;
+}
+
 export class WebStack extends Stack {
-  constructor(scope: Construct, id: string, props?: StackProps) {
+  constructor(scope: Construct, id: string, props: WebStackProps) {
     super(scope, id, props);
 
     const siteBucket = new Bucket(this, 'SiteBucket', {
@@ -35,11 +43,37 @@ export class WebStack extends Stack {
       comment: 'Maps clean URLs to the static export .html files',
     });
 
+    const contentSecurityPolicy = [
+      "default-src 'self'",
+      // The Next.js static export inlines its bootstrap scripts, so inline scripts must be allowed.
+      "script-src 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob:",
+      "font-src 'self'",
+      // The only places the page may send data to: our API and Cognito.
+      `connect-src 'self' ${props.apiUrl} https://cognito-idp.${this.region}.amazonaws.com`,
+      "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "object-src 'none'",
+    ].join('; ');
+
+    const securityHeaders = new ResponseHeadersPolicy(this, 'SecurityHeaders', {
+      securityHeadersBehavior: {
+        contentSecurityPolicy: { contentSecurityPolicy, override: true },
+        strictTransportSecurity: { accessControlMaxAge: Duration.days(365), includeSubdomains: true, override: true },
+        contentTypeOptions: { override: true },
+        frameOptions: { frameOption: HeadersFrameOption.DENY, override: true },
+        referrerPolicy: { referrerPolicy: HeadersReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN, override: true },
+      },
+    });
+
     const distribution = new Distribution(this, 'Distribution', {
       defaultBehavior: {
         origin: S3BucketOrigin.withOriginAccessControl(siteBucket),
         viewerProtocolPolicy: ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         functionAssociations: [{ function: urlRewrite, eventType: FunctionEventType.VIEWER_REQUEST }],
+        responseHeadersPolicy: securityHeaders,
       },
       defaultRootObject: 'index.html',
       errorResponses: [

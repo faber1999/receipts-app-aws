@@ -11,12 +11,12 @@ const env = { account: process.env.CDK_DEFAULT_ACCOUNT, region: 'us-east-2' };
 
 const auth = new AuthStack(app, 'AuthStack', { env });
 const data = new DataStack(app, 'DataStack', { env });
-new WebStack(app, 'WebStack', { env });
-
-new ApiStack(app, 'ApiStack', {
+const api = new ApiStack(app, 'ApiStack', {
   env,
   userPool: auth.userPool,
   userPoolClient: auth.webClient,
   table: data.table,
   allowedOrigins: ['http://localhost:3000', 'https://d320g8bknug8ck.cloudfront.net'],
 });
+
+new WebStack(app, 'WebStack', { env, apiUrl: api.apiUrl });

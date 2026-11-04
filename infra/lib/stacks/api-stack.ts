@@ -20,6 +20,8 @@ export interface ApiStackProps extends StackProps {
 const HANDLERS_DIR = join(import.meta.dirname, '../../../services/api/src/expenses/handlers');
 
 export class ApiStack extends Stack {
+  public readonly apiUrl: string;
+
   constructor(scope: Construct, id: string, props: ApiStackProps) {
     super(scope, id, props);
 
@@ -63,6 +65,8 @@ export class ApiStack extends Stack {
         maxAge: Duration.hours(1),
       },
     });
+
+    this.apiUrl = api.apiEndpoint;
 
     api.addRoutes({
       path: '/expenses',
