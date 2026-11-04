@@ -5,6 +5,7 @@ const nextConfig: NextConfig = {
   images: {
     unoptimized: true,
   },
+  transpilePackages: ['@receipts-app/contracts'],
   turbopack: {
     rules: {
       '*.css': {
