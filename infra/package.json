@@ -3,7 +3,9 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "scripts": {},
+  "scripts": {
+    "test": "vitest run"
+  },
   "dependencies": {
     "aws-cdk-lib": "^2.275.0",
     "constructs": "^10.8.1"
@@ -12,6 +14,7 @@
     "@types/node": "^24.19.2",
     "aws-cdk": "^2.1147.0",
     "esbuild": "^0.28.2",
-    "tsx": "^4.23.15"
+    "tsx": "^4.23.15",
+    "vitest": "^5.1.0"
   }
 }

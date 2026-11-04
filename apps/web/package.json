@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build && node scripts/fix-static-export-segments.mjs"
+    "build": "next build && node scripts/fix-static-export-segments.mjs",
+    "test": "vitest run"
   },
   "dependencies": {
     "@receipts-app/contracts": "workspace:*",
@@ -20,6 +21,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "tailwindcss": "^4",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
   }
 }
