@@ -28,7 +28,7 @@ export function toItem(userId: string, expense: Expense): ExpenseItem {
 }
 
 /** Validates an item read from DynamoDB; Zod drops the key attributes the client never sees. */
-export function fromItem(item: Record<string, unknown>): Expense {
+export function fromItem(item: unknown): Expense {
   return expenseSchema.parse(item);
 }
 
