@@ -23,22 +23,26 @@ export class ApiStack extends Stack {
   constructor(scope: Construct, id: string, props: ApiStackProps) {
     super(scope, id, props);
 
-    const listExpenses = new NodejsFunction(this, 'ListExpensesFunction', {
-      entry: join(HANDLERS_DIR, 'list-expenses.ts'),
-      runtime: Runtime.NODEJS_24_X,
-      architecture: Architecture.ARM_64,
-      memorySize: 256,
-      timeout: Duration.seconds(10),
-      environment: {
-        TABLE_NAME: props.table.tableName,
-      },
-      bundling: { minify: true },
-      logGroup: new LogGroup(this, 'ListExpensesLogs', {
-        retention: RetentionDays.ONE_WEEK,
-        removalPolicy: RemovalPolicy.DESTROY,
-      }),
-    });
+    const createHandler = (name: string, file: string): NodejsFunction =>
+      new NodejsFunction(this, `${name}Function`, {
+        entry: join(HANDLERS_DIR, file),
+        runtime: Runtime.NODEJS_24_X,
+        architecture: Architecture.ARM_64,
+        memorySize: 256,
+        timeout: Duration.seconds(10),
+        environment: { TABLE_NAME: props.table.tableName },
+        bundling: { minify: true },
+        logGroup: new LogGroup(this, `${name}Logs`, {
+          retention: RetentionDays.ONE_WEEK,
+          removalPolicy: RemovalPolicy.DESTROY,
+        }),
+      });
+
+    const listExpenses = createHandler('ListExpenses', 'list-expenses.ts');
     props.table.grantReadData(listExpenses);
+
+    const createExpense = createHandler('CreateExpense', 'create-expense.ts');
+    props.table.grantWriteData(createExpense);
 
     const authorizer = new HttpUserPoolAuthorizer('CognitoAuthorizer', props.userPool, {
       userPoolClients: [props.userPoolClient],
@@ -58,6 +62,12 @@ export class ApiStack extends Stack {
       path: '/expenses',
       methods: [HttpMethod.GET],
       integration: new HttpLambdaIntegration('ListExpensesIntegration', listExpenses),
+    });
+
+    api.addRoutes({
+      path: '/expenses',
+      methods: [HttpMethod.POST],
+      integration: new HttpLambdaIntegration('CreateExpenseIntegration', createExpense),
     });
 
     new CfnOutput(this, 'ApiUrl', { value: api.apiEndpoint });
