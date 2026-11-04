@@ -6,20 +6,30 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogBody, DialogFooter } from '@/components/ui/dialog';
 import { FieldError } from '@/components/ui/input';
 import { useI18n } from '@/i18n/i18n-provider';
+import { formatMoney, type MoneyDisplay } from '@/lib/money';
 import { type ExpenseErrorKey, getExpenseErrorKey } from '../errors';
-import { formatLongDate, formatMoney } from '../format';
+import { formatLongDate } from '../format';
 
 export interface DeleteExpenseDialogProps {
   open: boolean;
   /** Kept while closing so the exit animation shows the same text. */
   expense: Expense | null;
+  /** Matches the list row the dialog was opened from. */
+  moneyDisplay: MoneyDisplay;
   onClose: () => void;
   /** Deletes the expense; throws on failure. A 404 should be treated as success by the caller. */
   onConfirm: (expense: Expense) => Promise<void>;
   fallbackFocus: () => HTMLElement | null;
 }
 
-export function DeleteExpenseDialog({ open, expense, onClose, onConfirm, fallbackFocus }: DeleteExpenseDialogProps) {
+export function DeleteExpenseDialog({
+  open,
+  expense,
+  moneyDisplay,
+  onClose,
+  onConfirm,
+  fallbackFocus,
+}: DeleteExpenseDialogProps) {
   const { t, intlLocale } = useI18n();
   const cancelRef = useRef<HTMLButtonElement>(null);
   const [deleting, setDeleting] = useState(false);
@@ -52,7 +62,7 @@ export function DeleteExpenseDialog({ open, expense, onClose, onConfirm, fallbac
   const title = expense ? copy.title(expense.merchant) : '';
   const description = expense
     ? copy.description(
-        formatMoney(expense.total, expense.currency, intlLocale),
+        formatMoney(expense.total, expense.currency, intlLocale, { display: moneyDisplay }),
         formatLongDate(expense.date, intlLocale),
       )
     : '';

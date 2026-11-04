@@ -1,12 +1,15 @@
 'use client';
 
 import { useI18n } from '@/i18n/i18n-provider';
-import { formatMoney, formatPercent } from '../format';
+import { formatMoney, type MoneyDisplay } from '@/lib/money';
+import { formatPercent } from '../format';
 import type { CategoryTotal } from '../month';
 
 export interface CategoryBreakdownProps {
   categories: CategoryTotal[];
   currency: string;
+  /** 'unambiguous' when the month mixes currencies, so "$" for COP and USD cannot be confused. */
+  display: MoneyDisplay;
   /** Labels the list for assistive tech, e.g. "By category". */
   labelId: string;
 }
@@ -15,7 +18,7 @@ export interface CategoryBreakdownProps {
  * Totals by category as a bar list. The amount and share are always printed;
  * the bar only repeats them visually (aria-hidden), so nothing depends on color or length.
  */
-export function CategoryBreakdown({ categories, currency, labelId }: CategoryBreakdownProps) {
+export function CategoryBreakdown({ categories, currency, display, labelId }: CategoryBreakdownProps) {
   const { t, intlLocale } = useI18n();
 
   return (
@@ -27,7 +30,7 @@ export function CategoryBreakdown({ categories, currency, labelId }: CategoryBre
             <div className="flex items-baseline justify-between gap-3 text-sm">
               <span className="min-w-0 truncate text-ink">{t.categories[category]}</span>
               <span className="shrink-0 tabular-nums">
-                <span className="font-medium text-ink">{formatMoney(total, currency, intlLocale)}</span>
+                <span className="font-medium text-ink">{formatMoney(total, currency, intlLocale, { display })}</span>
                 <span className="ml-2 inline-block min-w-[4ch] text-right text-ink-muted">
                   <span aria-hidden="true">{percent}</span>
                   <span className="sr-only">{t.expenses.summary.shareOfTotal(percent)}</span>

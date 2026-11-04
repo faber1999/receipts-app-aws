@@ -7,8 +7,10 @@ import {
 } from '@receipts-app/contracts';
 import { apiRequest } from '@/lib/api-client';
 
-export async function listExpenses(): Promise<Expense[]> {
-  const data = listExpensesResponseSchema.parse(await apiRequest('GET', '/expenses'));
+export async function listExpenses(month: string): Promise<Expense[]> {
+  const data = listExpensesResponseSchema.parse(
+    await apiRequest('GET', `/expenses?month=${encodeURIComponent(month)}`),
+  );
   return data.items;
 }
 

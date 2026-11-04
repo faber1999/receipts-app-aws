@@ -99,11 +99,11 @@ export const en = {
     description: 'Your receipts and where your money went, month by month.',
     addExpense: 'Add expense',
     month: {
-      label: 'Month',
       previous: 'Previous month',
       next: 'Next month',
     },
     summary: {
+      label: 'Monthly summary',
       totalSpent: 'Total spent',
       totalIn: (currency: string) => `Total in ${currency}`,
       expenseCount: (count: number) => (count === 1 ? '1 expense' : `${count} expenses`),
@@ -131,15 +131,16 @@ export const en = {
       delete: 'Delete',
       editLabel: (merchant: string) => `Edit ${merchant}`,
       deleteLabel: (merchant: string) => `Delete ${merchant}`,
-      emptyMonth: 'No expenses this month. Switch months or add one.',
     },
     empty: {
-      title: 'No expenses yet',
-      description: 'Add your first expense to see your monthly total and where your money goes by category.',
+      title: (month: string) => `No expenses in ${month}`,
+      currentDescription:
+        'Add your first expense of the month to see your total and where your money goes by category.',
+      pastDescription: 'Nothing was recorded this month. Add an expense dated in it, or switch months.',
     },
-    loading: 'Loading your expenses…',
+    loading: (month: string) => `Loading expenses for ${month}…`,
     loadError: {
-      title: 'We couldn’t load your expenses',
+      title: (month: string) => `We couldn’t load expenses for ${month}`,
       description: 'Check your connection and try again. Nothing was lost.',
       retry: 'Try again',
     },
@@ -151,6 +152,7 @@ export const en = {
       merchantLabel: 'Merchant',
       merchantPlaceholder: 'e.g. Green Valley Market',
       totalLabel: 'Total',
+      totalCurrency: (currency: string) => `Amount in ${currency}`,
       currencyLabel: 'Currency',
       dateLabel: 'Date',
       categoryLabel: 'Category',

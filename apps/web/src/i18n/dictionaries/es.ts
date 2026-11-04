@@ -102,11 +102,11 @@ export const es: Dictionary = {
     description: 'Tus recibos y en qué se va tu dinero, mes a mes.',
     addExpense: 'Agregar gasto',
     month: {
-      label: 'Mes',
       previous: 'Mes anterior',
       next: 'Mes siguiente',
     },
     summary: {
+      label: 'Resumen del mes',
       totalSpent: 'Total gastado',
       totalIn: (currency: string) => `Total en ${currency}`,
       expenseCount: (count: number) => (count === 1 ? '1 gasto' : `${count} gastos`),
@@ -121,7 +121,7 @@ export const es: Dictionary = {
     },
     list: {
       title: 'Gastos',
-      caption: (month: string) => `Gastos de ${month}`,
+      caption: (month: string) => `Gastos de ${month.toLocaleLowerCase('es')}`,
       count: (count: number) => (count === 1 ? '1 gasto' : `${count} gastos`),
       columns: {
         date: 'Fecha',
@@ -134,15 +134,16 @@ export const es: Dictionary = {
       delete: 'Eliminar',
       editLabel: (merchant: string) => `Editar ${merchant}`,
       deleteLabel: (merchant: string) => `Eliminar ${merchant}`,
-      emptyMonth: 'No hay gastos este mes. Cambia de mes o agrega uno.',
     },
     empty: {
-      title: 'Aún no tienes gastos',
-      description: 'Agrega tu primer gasto para ver el total del mes y en qué se va tu dinero por categoría.',
+      // Month names are lowercase mid-sentence in Spanish ("noviembre de 2026").
+      title: (month: string) => `No hay gastos en ${month.toLocaleLowerCase('es')}`,
+      currentDescription: 'Agrega tu primer gasto del mes para ver el total y en qué se va tu dinero por categoría.',
+      pastDescription: 'No se registró nada este mes. Agrega un gasto con fecha de ese mes o cambia de mes.',
     },
-    loading: 'Cargando tus gastos…',
+    loading: (month: string) => `Cargando los gastos de ${month.toLocaleLowerCase('es')}…`,
     loadError: {
-      title: 'No pudimos cargar tus gastos',
+      title: (month: string) => `No pudimos cargar los gastos de ${month.toLocaleLowerCase('es')}`,
       description: 'Revisa tu conexión e inténtalo de nuevo. No se perdió nada.',
       retry: 'Intentar de nuevo',
     },
@@ -154,6 +155,7 @@ export const es: Dictionary = {
       merchantLabel: 'Comercio',
       merchantPlaceholder: 'p. ej., Mercado del Valle',
       totalLabel: 'Total',
+      totalCurrency: (currency: string) => `Monto en ${currency}`,
       currencyLabel: 'Moneda',
       dateLabel: 'Fecha',
       categoryLabel: 'Categoría',

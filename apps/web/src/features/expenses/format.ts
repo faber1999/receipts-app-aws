@@ -1,23 +1,7 @@
-/** Currencies whose amounts are written without minor units in practice. */
-const WHOLE_UNIT_CURRENCIES = new Set(['COP']);
+// Money lives in '@/lib/money' (formatMoney, currencyAffix, moneyDisplayFor); this file keeps
+// the expense screen's dates and shares.
 
-const moneyFormats = new Map<string, Intl.NumberFormat>();
 const dateFormats = new Map<string, Intl.DateTimeFormat>();
-
-function moneyFormat(locale: string, currency: string): Intl.NumberFormat {
-  const key = `${locale}|${currency}`;
-  let format = moneyFormats.get(key);
-  if (!format) {
-    const whole = WHOLE_UNIT_CURRENCIES.has(currency);
-    format = new Intl.NumberFormat(locale, {
-      style: 'currency',
-      currency,
-      ...(whole ? { minimumFractionDigits: 0, maximumFractionDigits: 0 } : {}),
-    });
-    moneyFormats.set(key, format);
-  }
-  return format;
-}
 
 function dateFormat(locale: string, style: 'row' | 'long' | 'month'): Intl.DateTimeFormat {
   const key = `${locale}|${style}`;
@@ -43,10 +27,6 @@ function capitalize(text: string, locale: string): string {
   return text.charAt(0).toLocaleUpperCase(locale) + text.slice(1);
 }
 
-export function formatMoney(amount: number, currency: string, locale: string): string {
-  return moneyFormat(locale, currency).format(amount);
-}
-
 /** Short date for list rows, e.g. "Tue, Oct 28" / "mar, 28 oct". */
 export function formatRowDate(isoDate: string, locale: string): string {
   return dateFormat(locale, 'row').format(localDate(isoDate));
@@ -62,6 +42,14 @@ export function formatMonth(monthKey: string, locale: string): string {
   return capitalize(dateFormat(locale, 'month').format(localDate(`${monthKey}-01`)), locale);
 }
 
+const percentFormats = new Map<string, Intl.NumberFormat>();
+
+/** Whole-number share, e.g. "42%" / "42 %". */
 export function formatPercent(share: number, locale: string): string {
-  return new Intl.NumberFormat(locale, { style: 'percent', maximumFractionDigits: 0 }).format(share);
+  let format = percentFormats.get(locale);
+  if (!format) {
+    format = new Intl.NumberFormat(locale, { style: 'percent', maximumFractionDigits: 0 });
+    percentFormats.set(locale, format);
+  }
+  return format.format(share);
 }

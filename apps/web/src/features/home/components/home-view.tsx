@@ -2,6 +2,7 @@
 
 import { ButtonLink } from '@/components/ui/button';
 import { useI18n } from '@/i18n/i18n-provider';
+import { formatMoney } from '@/lib/money';
 
 export function HomeView() {
   const { t } = useI18n();
@@ -37,7 +38,6 @@ export function HomeView() {
 function ReceiptPreview() {
   const { t, intlLocale } = useI18n();
   const preview = t.home.preview;
-  const money = new Intl.NumberFormat(intlLocale, { style: 'currency', currency: preview.currency });
 
   const fields = [
     { label: preview.merchantLabel, value: preview.merchant },
@@ -88,14 +88,16 @@ function ReceiptPreview() {
           <div className="mt-4 flex items-baseline justify-between gap-4">
             <p className="text-sm font-medium text-ink">{preview.totalLabel}</p>
             <p className="font-display text-3xl font-semibold tracking-tight text-ink tabular-nums">
-              {money.format(preview.total)}
+              {formatMoney(preview.total, preview.currency, intlLocale)}
             </p>
           </div>
         </div>
       </div>
       <figcaption className="mt-4 text-sm text-ink-muted">
         {preview.monthLabel}{' '}
-        <span className="font-medium text-ink tabular-nums">{money.format(preview.monthTotal)}</span>
+        <span className="font-medium text-ink tabular-nums">
+          {formatMoney(preview.monthTotal, preview.currency, intlLocale)}
+        </span>
       </figcaption>
     </figure>
   );

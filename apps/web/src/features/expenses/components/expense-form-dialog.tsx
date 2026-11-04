@@ -5,6 +5,7 @@ import { type SubmitEvent, useId, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogBody, DialogFooter } from '@/components/ui/dialog';
 import { FieldError, TextField } from '@/components/ui/input';
+import { MoneyField } from '@/components/ui/money-input';
 import { SelectField } from '@/components/ui/select';
 import { useI18n } from '@/i18n/i18n-provider';
 import { type ExpenseErrorKey, getExpenseErrorKey } from '../errors';
@@ -72,6 +73,8 @@ function ExpenseForm({ expense, saving, setSaving, onCancel, onSave }: ExpenseFo
   const id = useId();
   const [fieldErrors, setFieldErrors] = useState<ExpenseFieldErrors>({});
   const [formError, setFormError] = useState<ExpenseErrorKey | null>(null);
+  // Mirrors the (still uncontrolled) currency select so the total can format for it.
+  const [currency, setCurrency] = useState(expense?.currency ?? DEFAULT_CURRENCY);
   const { form } = t.expenses;
 
   // Keep a currency the form does not offer (e.g. one read from a receipt) instead of silently changing it.
@@ -90,7 +93,8 @@ function ExpenseForm({ expense, saving, setSaving, onCancel, onSave }: ExpenseFo
       setFieldErrors(parsed.errors);
       // Move focus to the first invalid field so keyboard and screen reader users land on the problem.
       const first = EXPENSE_FIELDS.find((field) => parsed.errors[field]);
-      const control = first ? formElement.elements.namedItem(first) : null;
+      // By id, not name: the total's `name` sits on a hidden input that carries the plain number.
+      const control = first ? formElement.ownerDocument.getElementById(fieldId(first)) : null;
       if (control instanceof HTMLElement) control.focus();
       return;
     }
@@ -128,17 +132,13 @@ function ExpenseForm({ expense, saving, setSaving, onCancel, onSave }: ExpenseFo
             error={errorText('merchant')}
           />
           <div className="grid grid-cols-[minmax(0,1fr)_7rem] gap-3">
-            <TextField
+            <MoneyField
               id={fieldId('total')}
               name="total"
-              type="number"
-              inputMode="decimal"
-              step="any"
-              min="0"
+              currency={currency}
               label={form.totalLabel}
-              placeholder="0"
-              defaultValue={expense ? String(expense.total) : ''}
-              inputClassName="tabular-nums"
+              currencyDescription={form.totalCurrency}
+              defaultValue={expense?.total ?? null}
               error={errorText('total')}
             />
             <SelectField
@@ -146,6 +146,7 @@ function ExpenseForm({ expense, saving, setSaving, onCancel, onSave }: ExpenseFo
               name="currency"
               label={form.currencyLabel}
               defaultValue={expense?.currency ?? DEFAULT_CURRENCY}
+              onChange={(event) => setCurrency(event.target.value)}
               error={errorText('currency')}
             >
               {currencies.map((currency) => (

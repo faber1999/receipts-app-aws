@@ -27,25 +27,25 @@ export function shiftMonth(key: MonthKey, delta: number): MonthKey {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}`;
 }
 
-/** The months the switcher can reach: from the oldest expense to the newest, always including this month. */
-export function monthBounds(expenses: readonly Expense[], current: MonthKey): { min: MonthKey; max: MonthKey } {
-  let min = current;
-  let max = current;
-  for (const expense of expenses) {
-    const key = monthKeyOf(expense.date);
-    if (key < min) min = key;
-    if (key > max) max = key;
-  }
-  return { min, max };
-}
-
 /** Newest first; same day falls back to the most recently created. */
 export function sortExpenses(expenses: readonly Expense[]): Expense[] {
   return [...expenses].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
 }
 
-export function expensesInMonth(expenses: readonly Expense[], key: MonthKey): Expense[] {
-  return sortExpenses(expenses.filter((expense) => monthKeyOf(expense.date) === key));
+/**
+ * A local change to replay on a month's list. Both are idempotent by id, so replaying one
+ * over a response that already reflects it is harmless.
+ */
+export type ExpenseChange = { type: 'upsert'; expense: Expense } | { type: 'remove'; id: string };
+
+/** Applies a change to one month's list; an upsert only lands in the month its date belongs to. */
+export function applyExpenseChange(items: readonly Expense[], month: MonthKey, change: ExpenseChange): Expense[] {
+  const id = change.type === 'upsert' ? change.expense.id : change.id;
+  const rest = items.filter((expense) => expense.id !== id);
+  if (change.type === 'upsert' && monthKeyOf(change.expense.date) === month) {
+    return sortExpenses([change.expense, ...rest]);
+  }
+  return rest;
 }
 
 export interface CategoryTotal {

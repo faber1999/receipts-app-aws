@@ -12,23 +12,23 @@ function Bone({ className }: { className?: string }) {
   return <div className={cn('animate-pulse rounded-xs bg-surface-muted motion-reduce:animate-none', className)} />;
 }
 
-/** Mirrors the loaded layout (summary card + list) so nothing jumps when data arrives. */
-export function ExpensesSkeleton() {
+export interface ExpensesSkeletonProps {
+  monthLabel: string;
+}
+
+/**
+ * Mirrors the loaded layout (summary card + list) so nothing jumps when data arrives.
+ * It fades in after a short intent delay, so a fast response never flashes placeholders.
+ */
+export function ExpensesSkeleton({ monthLabel }: ExpensesSkeletonProps) {
   const { t } = useI18n();
 
   return (
-    <div aria-busy="true" className="flex flex-col gap-8">
+    <div className="flex animate-reveal flex-col gap-8 [animation-delay:var(--duration-micro)]">
       <p role="status" className="sr-only">
-        {t.expenses.loading}
+        {t.expenses.loading(monthLabel)}
       </p>
       <div aria-hidden="true" className="rounded-lg bg-surface shadow-md">
-        <div className="flex h-14 items-center justify-between border-b border-line pr-3 pl-5 sm:pl-6">
-          <Bone className="h-5 w-36" />
-          <div className="flex gap-2">
-            <Bone className="size-8 rounded-sm" />
-            <Bone className="size-8 rounded-sm" />
-          </div>
-        </div>
         <div className="grid gap-6 px-5 py-5 sm:px-6 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] md:gap-12">
           <div className="flex flex-col gap-2.5">
             <Bone className="h-4 w-24" />
@@ -69,12 +69,16 @@ export function ExpensesSkeleton() {
 }
 
 export interface ExpensesEmptyStateProps {
+  monthLabel: string;
+  /** The current month keeps the first-run teaching copy; a past month just says it is empty. */
+  isCurrentMonth: boolean;
   onAdd: () => void;
 }
 
-/** First run: teach what the screen will show, then offer the one action that fills it. */
-export function ExpensesEmptyState({ onAdd }: ExpensesEmptyStateProps) {
+/** An empty month: say which month, teach what fills it, and offer the one action that does. */
+export function ExpensesEmptyState({ monthLabel, isCurrentMonth, onAdd }: ExpensesEmptyStateProps) {
   const { t } = useI18n();
+  const { empty } = t.expenses;
 
   return (
     <section
@@ -90,14 +94,16 @@ export function ExpensesEmptyState({ onAdd }: ExpensesEmptyStateProps) {
           <div className="mt-1 h-1.5 w-2/5 self-end rounded-full bg-line" />
         </div>
       </div>
-      <h2
+      <h3
         id={EMPTY_STATE_TITLE_ID}
         tabIndex={-1}
-        className="mt-6 rounded-xs text-lg font-semibold tracking-tight text-ink focus-visible:outline-offset-4"
+        className="mt-6 rounded-xs text-lg font-semibold tracking-tight text-balance text-ink focus-visible:outline-offset-4"
       >
-        {t.expenses.empty.title}
-      </h2>
-      <p className="mt-2 max-w-sm text-sm text-ink-muted">{t.expenses.empty.description}</p>
+        {empty.title(monthLabel)}
+      </h3>
+      <p className="mt-2 max-w-sm text-sm text-pretty text-ink-muted">
+        {isCurrentMonth ? empty.currentDescription : empty.pastDescription}
+      </p>
       <Button onClick={onAdd} className="mt-6 pl-3.5">
         <PlusIcon />
         {t.expenses.addExpense}
@@ -107,10 +113,12 @@ export function ExpensesEmptyState({ onAdd }: ExpensesEmptyStateProps) {
 }
 
 export interface ExpensesLoadErrorProps {
+  monthLabel: string;
   onRetry: () => void;
 }
 
-export function ExpensesLoadError({ onRetry }: ExpensesLoadErrorProps) {
+/** Scoped to one month: other months stay reachable, and retry refetches only this one. */
+export function ExpensesLoadError({ monthLabel, onRetry }: ExpensesLoadErrorProps) {
   const { t } = useI18n();
 
   return (
@@ -122,7 +130,7 @@ export function ExpensesLoadError({ onRetry }: ExpensesLoadErrorProps) {
         <AlertIcon />
       </span>
       <div className="flex flex-1 flex-col gap-1">
-        <h2 className="font-semibold text-ink">{t.expenses.loadError.title}</h2>
+        <h3 className="font-semibold text-ink">{t.expenses.loadError.title(monthLabel)}</h3>
         <p className="text-sm text-ink-muted">{t.expenses.loadError.description}</p>
       </div>
       <Button variant="secondary" onClick={onRetry} className="pl-3.5">

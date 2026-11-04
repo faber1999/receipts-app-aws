@@ -7,12 +7,11 @@ import { useI18n } from '@/i18n/i18n-provider';
 export const ADD_EXPENSE_BUTTON_ID = 'add-expense';
 
 export interface ExpensesHeaderProps {
+  /** Always available: a saved expense lands in its month whether or not that month is loaded yet. */
   onAdd: () => void;
-  /** False until the list has loaded, so a new expense always lands in a known list. */
-  canAdd: boolean;
 }
 
-export function ExpensesHeader({ onAdd, canAdd }: ExpensesHeaderProps) {
+export function ExpensesHeader({ onAdd }: ExpensesHeaderProps) {
   const { t } = useI18n();
 
   return (
@@ -20,7 +19,7 @@ export function ExpensesHeader({ onAdd, canAdd }: ExpensesHeaderProps) {
       <h1 id="expenses-title" className="font-display text-3xl font-semibold tracking-[-0.02em] text-ink sm:text-4xl">
         {t.expenses.title}
       </h1>
-      <Button id={ADD_EXPENSE_BUTTON_ID} onClick={onAdd} disabled={!canAdd} className="pl-3.5">
+      <Button id={ADD_EXPENSE_BUTTON_ID} onClick={onAdd} className="pl-3.5">
         <PlusIcon />
         {t.expenses.addExpense}
       </Button>

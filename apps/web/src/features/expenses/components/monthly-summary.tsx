@@ -3,41 +3,33 @@
 import { useId } from 'react';
 import { AlertIcon } from '@/components/icons';
 import { useI18n } from '@/i18n/i18n-provider';
-import { formatMoney } from '../format';
+import { formatMoney, type MoneyDisplay, moneyDisplayFor } from '@/lib/money';
 import type { CurrencySummary, MonthSummary } from '../month';
 import { CategoryBreakdown } from './category-breakdown';
-import { MonthSwitcher, type MonthSwitcherProps } from './month-switcher';
 
-export interface MonthlySummaryProps extends MonthSwitcherProps {
-  monthLabel: string;
+export interface MonthlySummaryProps {
+  /** Totals of the selected month; the month itself is named by the switcher above. */
   summary: MonthSummary;
 }
 
-export function MonthlySummary({ monthLabel, summary, ...switcher }: MonthlySummaryProps) {
+export function MonthlySummary({ summary }: MonthlySummaryProps) {
   const { t } = useI18n();
   const { currencies, failedCount } = summary;
   const mixed = currencies.length > 1;
+  const display = moneyDisplayFor(currencies.map((group) => group.currency));
 
   return (
-    <section aria-labelledby="summary-title" className="rounded-lg bg-surface shadow-md">
-      <div className="flex items-center justify-between gap-4 border-b border-line py-3 pr-3 pl-5 sm:pl-6">
-        {/* Announced politely so switching months is heard, not only seen. */}
-        <h2 id="summary-title" aria-live="polite" className="text-lg font-semibold tracking-tight text-ink">
-          {monthLabel}
-        </h2>
-        <MonthSwitcher {...switcher} />
-      </div>
-
+    <section aria-label={t.expenses.summary.label} className="rounded-lg bg-surface shadow-md">
       {currencies.length === 0 ? (
         <p className="px-5 py-8 text-sm text-ink-muted sm:px-6">{t.expenses.summary.empty}</p>
       ) : (
         <>
           {mixed ? (
-            <p className="px-5 pt-4 text-sm text-ink-muted sm:px-6">{t.expenses.summary.mixedCurrencies}</p>
+            <p className="px-5 pt-5 text-sm text-ink-muted sm:px-6">{t.expenses.summary.mixedCurrencies}</p>
           ) : null}
           <div className="divide-y divide-line">
             {currencies.map((group) => (
-              <CurrencyBlock key={group.currency} group={group} mixed={mixed} />
+              <CurrencyBlock key={group.currency} group={group} mixed={mixed} display={display} />
             ))}
           </div>
         </>
@@ -56,9 +48,10 @@ export function MonthlySummary({ monthLabel, summary, ...switcher }: MonthlySumm
 interface CurrencyBlockProps {
   group: CurrencySummary;
   mixed: boolean;
+  display: MoneyDisplay;
 }
 
-function CurrencyBlock({ group, mixed }: CurrencyBlockProps) {
+function CurrencyBlock({ group, mixed, display }: CurrencyBlockProps) {
   const { t, intlLocale } = useI18n();
   const labelId = useId();
 
@@ -69,7 +62,7 @@ function CurrencyBlock({ group, mixed }: CurrencyBlockProps) {
           {mixed ? t.expenses.summary.totalIn(group.currency) : t.expenses.summary.totalSpent}
         </p>
         <p className="font-display text-4xl font-semibold tracking-tight text-ink tabular-nums">
-          {formatMoney(group.total, group.currency, intlLocale)}
+          {formatMoney(group.total, group.currency, intlLocale, { display })}
         </p>
         <p className="text-sm text-ink-muted tabular-nums">{t.expenses.summary.expenseCount(group.count)}</p>
       </div>
@@ -77,7 +70,12 @@ function CurrencyBlock({ group, mixed }: CurrencyBlockProps) {
         <h3 id={labelId} className="text-sm font-medium text-ink-muted">
           {t.expenses.summary.byCategory}
         </h3>
-        <CategoryBreakdown categories={group.categories} currency={group.currency} labelId={labelId} />
+        <CategoryBreakdown
+          categories={group.categories}
+          currency={group.currency}
+          display={display}
+          labelId={labelId}
+        />
       </div>
     </div>
   );

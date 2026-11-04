@@ -1,24 +1,28 @@
 'use client';
 
 import type { CreateExpenseInput, Expense, UpdateExpenseInput } from '@receipts-app/contracts';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { Toast } from '@/components/ui/toast';
 import type { Dictionary } from '@/i18n/dictionaries';
 import { useI18n } from '@/i18n/i18n-provider';
+import { moneyDisplayFor } from '@/lib/money';
 import { isApiStatus } from '../errors';
 import { formatMonth } from '../format';
-import { currentMonthKey, expensesInMonth, monthBounds, monthKeyOf, shiftMonth, summarizeMonth } from '../month';
+import { currentMonthKey, type MonthKey, monthKeyOf, shiftMonth, summarizeMonth } from '../month';
+import { MonthExpensesStore } from '../month-store';
 import { changedFields } from '../schemas';
 import { DeleteExpenseDialog } from './delete-expense-dialog';
 import { ExpenseFormDialog, type ExpenseFormTarget } from './expense-form-dialog';
 import { EXPENSE_LIST_TITLE_ID, ExpenseList } from './expense-list';
 import { ADD_EXPENSE_BUTTON_ID, ExpensesHeader } from './expenses-header';
 import { EMPTY_STATE_TITLE_ID, ExpensesEmptyState, ExpensesLoadError, ExpensesSkeleton } from './expenses-states';
+import { MONTH_TITLE_ID, MonthSwitcher } from './month-switcher';
 import { MonthlySummary } from './monthly-summary';
 
 /** The data operations the screen needs; injected so the screen never imports the network layer itself. */
 export interface ExpensesApi {
-  list: () => Promise<Expense[]>;
+  /** One calendar month (YYYY-MM), newest first. */
+  list: (month: MonthKey) => Promise<Expense[]>;
   create: (input: CreateExpenseInput) => Promise<Expense>;
   update: (id: string, input: UpdateExpenseInput) => Promise<Expense>;
   remove: (id: string) => Promise<void>;
@@ -26,11 +30,10 @@ export interface ExpensesApi {
 
 export interface ExpensesWorkspaceProps {
   api: ExpensesApi;
-  /** Called when the API says the session is gone (401 on load). */
+  /** Called when the API says the session is gone (401 on a month load). */
   onUnauthorized: () => void;
 }
 
-type LoadState = { status: 'loading' } | { status: 'error' } | { status: 'ready'; items: Expense[] };
 type ToastKey = keyof Dictionary['expenses']['toast'];
 
 const TOAST_VISIBLE_MS = 3200;
@@ -40,14 +43,14 @@ function fallbackFocus(): HTMLElement | null {
   return (
     document.getElementById(EXPENSE_LIST_TITLE_ID) ??
     document.getElementById(EMPTY_STATE_TITLE_ID) ??
+    document.getElementById(MONTH_TITLE_ID) ??
     document.getElementById(ADD_EXPENSE_BUTTON_ID)
   );
 }
 
 export function ExpensesWorkspace({ api, onUnauthorized }: ExpensesWorkspaceProps) {
   const { t, intlLocale } = useI18n();
-  const [load, setLoad] = useState<LoadState>({ status: 'loading' });
-  const [attempt, setAttempt] = useState(0);
+  const [store] = useState(() => new MonthExpensesStore());
   const [month, setMonth] = useState(currentMonthKey);
   const [highlightId, setHighlightId] = useState<string | null>(null);
 
@@ -60,26 +63,20 @@ export function ExpensesWorkspace({ api, onUnauthorized }: ExpensesWorkspaceProp
   const [toast, setToast] = useState<{ key: ToastKey; id: number } | null>(null);
   const [toastOpen, setToastOpen] = useState(false);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: `attempt` is the retry trigger; bumping it reloads the list
+  const entry = useSyncExternalStore(
+    store.subscribe,
+    () => store.get(month),
+    () => undefined,
+  );
+
+  // Each month is fetched the first time it is shown; after that it renders from the cache.
   useEffect(() => {
-    let active = true;
-    api
-      .list()
-      .then((items) => {
-        if (active) setLoad({ status: 'ready', items });
-      })
-      .catch((error: unknown) => {
-        if (!active) return;
-        if (isApiStatus(error, 401)) {
-          onUnauthorized();
-          return;
-        }
-        setLoad({ status: 'error' });
-      });
-    return () => {
-      active = false;
-    };
-  }, [api, attempt, onUnauthorized]);
+    store.ensure(month, api.list);
+  }, [store, month, api]);
+
+  useEffect(() => {
+    if (entry?.status === 'error' && entry.unauthorized) onUnauthorized();
+  }, [entry, onUnauthorized]);
 
   // Auto-hide; a newer toast restarts the clock.
   useEffect(() => {
@@ -93,16 +90,13 @@ export function ExpensesWorkspace({ api, onUnauthorized }: ExpensesWorkspaceProp
     setToastOpen(true);
   }, []);
 
-  const items = load.status === 'ready' ? load.items : null;
+  const items = entry?.status === 'ready' ? entry.items : null;
+  const loading = entry === undefined || entry.status === 'loading';
   const thisMonth = currentMonthKey();
-  const bounds = useMemo(() => monthBounds(items ?? [], thisMonth), [items, thisMonth]);
-  const monthItems = useMemo(() => expensesInMonth(items ?? [], month), [items, month]);
-  const summary = useMemo(() => summarizeMonth(monthItems), [monthItems]);
+  const summary = useMemo(() => summarizeMonth(items ?? []), [items]);
+  // One display for every row of the month (and its delete dialog), so amounts compare at a glance.
+  const moneyDisplay = useMemo(() => moneyDisplayFor((items ?? []).map((expense) => expense.currency)), [items]);
   const monthLabel = formatMonth(month, intlLocale);
-
-  function updateItems(change: (current: Expense[]) => Expense[]): void {
-    setLoad((current) => (current.status === 'ready' ? { status: 'ready', items: change(current.items) } : current));
-  }
 
   function openCreate(): void {
     setFormTarget({ mode: 'create' });
@@ -121,10 +115,11 @@ export function ExpensesWorkspace({ api, onUnauthorized }: ExpensesWorkspaceProp
     setDeleteOpen(true);
   }
 
-  /** Puts the saved expense in the list and follows it to its month, so the user sees the result. */
+  /** Puts the saved expense in its month (out of any other) and follows it there, so the user sees the result. */
   function applySaved(saved: Expense, toastKey: ToastKey): void {
-    updateItems((current) => [saved, ...current.filter((expense) => expense.id !== saved.id)]);
-    setMonth(monthKeyOf(saved.date));
+    const target = monthKeyOf(saved.date);
+    store.apply({ type: 'upsert', expense: saved }, target);
+    setMonth(target);
     setHighlightId(saved.id);
     setFormOpen(false);
     showToast(toastKey);
@@ -148,7 +143,7 @@ export function ExpensesWorkspace({ api, onUnauthorized }: ExpensesWorkspaceProp
     } catch (error: unknown) {
       // Deleted elsewhere: drop the stale row; the dialog explains what happened.
       if (isApiStatus(error, 404)) {
-        updateItems((current) => current.filter((item) => item.id !== expense.id));
+        store.apply({ type: 'remove', id: expense.id });
       }
       throw error;
     }
@@ -161,14 +156,21 @@ export function ExpensesWorkspace({ api, onUnauthorized }: ExpensesWorkspaceProp
       // Already gone is the outcome the user asked for.
       if (!isApiStatus(error, 404)) throw error;
     }
-    updateItems((current) => current.filter((item) => item.id !== expense.id));
+    store.apply({ type: 'remove', id: expense.id });
     setDeleteOpen(false);
     showToast('deleted');
   }
 
   function retry(): void {
-    setLoad({ status: 'loading' });
-    setAttempt((count) => count + 1);
+    store.load(month, api.list);
+  }
+
+  function goToMonth(delta: number): void {
+    setMonth((key) => {
+      const next = shiftMonth(key, delta);
+      // Never into the future (a saved future-dated expense can still be opened directly).
+      return delta > 0 && next > currentMonthKey() ? key : next;
+    });
   }
 
   const clearHighlight = useCallback(() => setHighlightId(null), []);
@@ -176,34 +178,40 @@ export function ExpensesWorkspace({ api, onUnauthorized }: ExpensesWorkspaceProp
   return (
     <section aria-labelledby="expenses-title" className="flex flex-col gap-8">
       <div className="animate-rise">
-        <ExpensesHeader onAdd={openCreate} canAdd={items !== null} />
+        <ExpensesHeader onAdd={openCreate} />
       </div>
 
-      {/* One staggered entrance for the content block; later state swaps use a quiet reveal instead. */}
-      <div className="stagger-1 animate-rise">
-        {load.status === 'loading' ? <ExpensesSkeleton /> : null}
-        {load.status === 'error' ? <ExpensesLoadError onRetry={retry} /> : null}
-        {items && items.length === 0 ? <ExpensesEmptyState onAdd={openCreate} /> : null}
-        {items && items.length > 0 ? (
-          <div className="flex animate-reveal flex-col gap-8">
-            <MonthlySummary
-              monthLabel={monthLabel}
-              summary={summary}
-              canGoBack={month > bounds.min}
-              canGoForward={month < bounds.max}
-              onPrevious={() => setMonth((key) => shiftMonth(key, -1))}
-              onNext={() => setMonth((key) => shiftMonth(key, 1))}
-            />
-            <ExpenseList
-              monthLabel={monthLabel}
-              expenses={monthItems}
-              highlightId={highlightId}
-              onHighlightEnd={clearHighlight}
-              onEdit={openEdit}
-              onDelete={openDelete}
-            />
-          </div>
-        ) : null}
+      {/* One staggered entrance for the month block; later state swaps use a quiet reveal instead. */}
+      <div className="stagger-1 flex animate-rise flex-col gap-4">
+        {/* Stays mounted across months and loads, so the controls never move and focus stays put. */}
+        <MonthSwitcher
+          monthLabel={monthLabel}
+          canGoForward={month < thisMonth}
+          onPrevious={() => goToMonth(-1)}
+          onNext={() => goToMonth(1)}
+        />
+
+        <div aria-busy={loading}>
+          {loading ? <ExpensesSkeleton monthLabel={monthLabel} /> : null}
+          {entry?.status === 'error' ? <ExpensesLoadError monthLabel={monthLabel} onRetry={retry} /> : null}
+          {items && items.length === 0 ? (
+            <ExpensesEmptyState monthLabel={monthLabel} isCurrentMonth={month === thisMonth} onAdd={openCreate} />
+          ) : null}
+          {items && items.length > 0 ? (
+            <div className="flex animate-reveal flex-col gap-8">
+              <MonthlySummary summary={summary} />
+              <ExpenseList
+                monthLabel={monthLabel}
+                expenses={items}
+                moneyDisplay={moneyDisplay}
+                highlightId={highlightId}
+                onHighlightEnd={clearHighlight}
+                onEdit={openEdit}
+                onDelete={openDelete}
+              />
+            </div>
+          ) : null}
+        </div>
       </div>
 
       <ExpenseFormDialog
@@ -217,6 +225,7 @@ export function ExpensesWorkspace({ api, onUnauthorized }: ExpensesWorkspaceProp
       <DeleteExpenseDialog
         open={deleteOpen}
         expense={deleteTarget}
+        moneyDisplay={moneyDisplay}
         onClose={() => setDeleteOpen(false)}
         onConfirm={handleDelete}
         fallbackFocus={fallbackFocus}
