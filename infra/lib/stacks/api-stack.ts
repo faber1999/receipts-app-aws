@@ -44,6 +44,12 @@ export class ApiStack extends Stack {
     const createExpense = createHandler('CreateExpense', 'create-expense.ts');
     props.table.grantWriteData(createExpense);
 
+    const updateExpense = createHandler('UpdateExpense', 'update-expense.ts');
+    props.table.grantWriteData(updateExpense);
+
+    const deleteExpense = createHandler('DeleteExpense', 'delete-expense.ts');
+    props.table.grantWriteData(deleteExpense);
+
     const authorizer = new HttpUserPoolAuthorizer('CognitoAuthorizer', props.userPool, {
       userPoolClients: [props.userPoolClient],
     });
@@ -68,6 +74,18 @@ export class ApiStack extends Stack {
       path: '/expenses',
       methods: [HttpMethod.POST],
       integration: new HttpLambdaIntegration('CreateExpenseIntegration', createExpense),
+    });
+
+    api.addRoutes({
+      path: '/expenses/{id}',
+      methods: [HttpMethod.PATCH],
+      integration: new HttpLambdaIntegration('UpdateExpenseIntegration', updateExpense),
+    });
+
+    api.addRoutes({
+      path: '/expenses/{id}',
+      methods: [HttpMethod.DELETE],
+      integration: new HttpLambdaIntegration('DeleteExpenseIntegration', deleteExpense),
     });
 
     new CfnOutput(this, 'ApiUrl', { value: api.apiEndpoint });

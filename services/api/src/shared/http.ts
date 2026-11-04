@@ -1,4 +1,5 @@
 import type { APIGatewayProxyResultV2 } from 'aws-lambda';
+import { z } from 'zod';
 
 export function json(statusCode: number, body: unknown): APIGatewayProxyResultV2 {
   return {
@@ -19,3 +20,11 @@ export function parseJsonBody(body: string | undefined, isBase64Encoded: boolean
     return undefined;
   }
 }
+
+/** Reads the {id} path parameter; returns undefined when it isn't a UUID. */
+export function getPathId(pathParameters: Record<string, string | undefined> | undefined): string | undefined {
+  const result = z.uuid().safeParse(pathParameters?.id);
+  return result.success ? result.data : undefined;
+}
+
+export const notFound = (): APIGatewayProxyResultV2 => json(404, { message: 'Expense not found' });

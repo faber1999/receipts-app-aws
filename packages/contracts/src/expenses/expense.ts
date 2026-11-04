@@ -41,7 +41,10 @@ export const createExpenseInputSchema = expenseSchema.pick({
 });
 
 /** Body of PATCH /expenses/{id}: any subset of the editable fields. */
-export const updateExpenseInputSchema = createExpenseInputSchema.partial();
+/** Body of PATCH /expenses/{id}: any non-empty subset of the editable fields. */
+export const updateExpenseInputSchema = createExpenseInputSchema
+  .partial()
+  .refine((input) => Object.keys(input).length > 0, { error: 'Provide at least one field to update' });
 
 export const listExpensesResponseSchema = z.object({
   items: z.array(expenseSchema),
