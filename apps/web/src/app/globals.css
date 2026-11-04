@@ -29,6 +29,7 @@
 
   /* States */
   --color-danger: oklch(0.52 0.17 28);
+  --color-danger-hover: oklch(0.47 0.16 28);
   --color-danger-soft: oklch(0.96 0.022 28);
   --color-warning: oklch(0.5 0.11 70);
   --color-warning-soft: oklch(0.96 0.035 85);
@@ -127,6 +128,35 @@
     }
   }
 
+  /*
+   * Content reveal after a skeleton (transitions.dev skeleton reveal): a soft
+   * cross-fade + --blur-small over --duration-slow. Used once per loaded block.
+   * Saved-row highlight: a primary-soft wash that fades so the eye finds the row
+   * that just changed; the toast carries the same news, so motion is not the only cue.
+   */
+  --animate-reveal: reveal var(--duration-slow) ease-in-out both;
+  --animate-highlight: highlight 1.6s var(--ease-standard) both;
+
+  @keyframes reveal {
+    from {
+      opacity: 0;
+      filter: blur(var(--blur-small));
+    }
+    to {
+      opacity: 1;
+      filter: blur(0);
+    }
+  }
+
+  @keyframes highlight {
+    from {
+      background-color: var(--color-primary-soft);
+    }
+    to {
+      background-color: transparent;
+    }
+  }
+
   @keyframes caret-blink {
     0%,
     70%,
@@ -207,6 +237,95 @@
   --icon-swap-start-scale: 0.25;
 
   --elevation-drop: 0 12px 24px oklch(0.24 0.02 165 / 0.12);
+
+  /*
+   * Modal (transitions.dev modal recipe), used by <Dialog> in components/ui/dialog.tsx
+   * on the native <dialog>. Open: --duration-fast from --scale-large; close: the
+   * quicker --duration-quick, no delay. @starting-style drives the entry and
+   * allow-discrete keeps the dialog in the top layer while it fades out.
+   */
+  --modal-open-dur: var(--duration-fast);
+  --modal-close-dur: var(--duration-quick);
+  --modal-scale: 0.96;
+  --modal-ease: var(--ease-smooth-out);
+  --modal-backdrop: oklch(0.24 0.02 165 / 0.32);
+
+  /* Toast (transitions.dev toast recipe), used by <Toast> in components/ui/toast.tsx. */
+  --toast-open: var(--duration-medium);
+  --toast-close: var(--duration-fast);
+  --toast-distance: 16px;
+  --toast-blur: var(--blur-small);
+  --toast-scale: 0.97;
+  --toast-ease: var(--ease-smooth-out);
+}
+
+@layer components {
+  .t-modal {
+    opacity: 0;
+    scale: var(--modal-scale);
+    transition:
+      opacity var(--modal-close-dur) var(--modal-ease),
+      scale var(--modal-close-dur) var(--modal-ease),
+      overlay var(--modal-close-dur) allow-discrete,
+      display var(--modal-close-dur) allow-discrete;
+  }
+
+  .t-modal[open] {
+    opacity: 1;
+    scale: 1;
+    transition-duration: var(--modal-open-dur);
+  }
+
+  .t-modal::backdrop {
+    background-color: transparent;
+    transition:
+      background-color var(--modal-close-dur) var(--modal-ease),
+      overlay var(--modal-close-dur) allow-discrete,
+      display var(--modal-close-dur) allow-discrete;
+  }
+
+  .t-modal[open]::backdrop {
+    background-color: var(--modal-backdrop);
+    transition-duration: var(--modal-open-dur);
+  }
+
+  @starting-style {
+    .t-modal[open] {
+      opacity: 0;
+      scale: var(--modal-scale);
+    }
+
+    .t-modal[open]::backdrop {
+      background-color: transparent;
+    }
+
+    /* A toast that mounts already open still rises in. */
+    .t-toast.is-open {
+      opacity: 0;
+      transform: translateY(var(--toast-distance)) scale(var(--toast-scale));
+      filter: blur(var(--toast-blur));
+    }
+  }
+
+  .t-toast {
+    opacity: 0;
+    transform: translateY(var(--toast-distance)) scale(var(--toast-scale));
+    filter: blur(var(--toast-blur));
+    transition:
+      opacity var(--toast-close) var(--toast-ease),
+      transform var(--toast-close) var(--toast-ease),
+      filter var(--toast-close) var(--toast-ease);
+  }
+
+  .t-toast.is-open {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+    transition:
+      opacity var(--toast-open) var(--toast-ease),
+      transform var(--toast-open) var(--toast-ease),
+      filter var(--toast-open) var(--toast-ease);
+  }
 }
 
 /* Torn-paper bottom edge for receipt surfaces (the brand's signature shape). */
@@ -289,9 +408,22 @@
     outline: 2px solid var(--color-focus);
     outline-offset: 2px;
   }
+
+  /* A modal dialog locks page scroll; the stable gutter stops the layout from jumping. */
+  html:has(dialog[open]:modal) {
+    overflow: hidden;
+    scrollbar-gutter: stable;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .t-modal,
+  .t-modal::backdrop,
+  .t-toast {
+    /* biome-ignore lint/complexity/noImportantStyles: the recipes' required reduced-motion guard */
+    transition: none !important;
+  }
+
   *,
   *::before,
   *::after {

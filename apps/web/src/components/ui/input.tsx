@@ -19,25 +19,21 @@ export interface InputProps extends ComponentPropsWithoutRef<'input'> {
   invalid?: boolean;
 }
 
+/** Shared field chrome (inputs and selects), so every form control reads as one family. */
+export const fieldControlStyles = cn(
+  'h-10 w-full rounded-md bg-surface px-3 text-base text-ink shadow-xs ring-1 ring-line-strong ring-inset sm:text-sm',
+  'placeholder:text-ink-subtle',
+  'transition-[box-shadow,background-color] duration-(--duration-quick) ease-standard',
+  'hover:ring-ink-subtle',
+  'focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-focus focus-visible:ring-transparent',
+  // Invalid + focused keeps the danger ring and adds an offset danger outline,
+  // so focus stays visibly distinct from the resting invalid state.
+  'aria-invalid:ring-danger aria-invalid:focus-visible:outline-offset-2 aria-invalid:focus-visible:outline-danger aria-invalid:focus-visible:ring-danger',
+  'disabled:cursor-not-allowed disabled:bg-surface-muted disabled:opacity-60',
+);
+
 export function Input({ invalid = false, className, ...props }: InputProps) {
-  return (
-    <input
-      aria-invalid={invalid || undefined}
-      className={cn(
-        'h-10 w-full rounded-md bg-surface px-3 text-base text-ink shadow-xs ring-1 ring-line-strong ring-inset sm:text-sm',
-        'placeholder:text-ink-subtle',
-        'transition-[box-shadow,background-color] duration-(--duration-quick) ease-standard',
-        'hover:ring-ink-subtle',
-        'focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-focus focus-visible:ring-transparent',
-        // Invalid + focused keeps the danger ring and adds an offset danger outline,
-        // so focus stays visibly distinct from the resting invalid state.
-        'aria-invalid:ring-danger aria-invalid:focus-visible:outline-offset-2 aria-invalid:focus-visible:outline-danger aria-invalid:focus-visible:ring-danger',
-        'disabled:cursor-not-allowed disabled:bg-surface-muted disabled:opacity-60',
-        className,
-      )}
-      {...props}
-    />
-  );
+  return <input aria-invalid={invalid || undefined} className={cn(fieldControlStyles, className)} {...props} />;
 }
 
 export interface FieldHintProps extends ComponentPropsWithoutRef<'p'> {

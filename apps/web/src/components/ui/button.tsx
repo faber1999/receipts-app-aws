@@ -1,8 +1,8 @@
 import Link from 'next/link';
-import type { ComponentPropsWithoutRef, ReactNode } from 'react';
+import type { ComponentPropsWithoutRef, ComponentPropsWithRef, ReactNode } from 'react';
 import { cn } from '@/lib/cn';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost';
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
 export interface ButtonStyleOptions {
@@ -24,6 +24,8 @@ const variants: Record<ButtonVariant, string> = {
   primary: 'bg-primary text-on-primary shadow-sm hover:bg-primary-hover',
   secondary: 'bg-surface text-ink shadow-sm ring-1 ring-line-strong ring-inset hover:bg-surface-muted',
   ghost: 'text-ink-muted hover:bg-surface-muted hover:text-ink',
+  /** Destructive confirmations only (e.g. the delete dialog), never as a row action. */
+  danger: 'bg-danger text-on-primary shadow-sm hover:bg-danger-hover',
 };
 
 const sizes: Record<ButtonSize, string> = {
@@ -42,7 +44,7 @@ export function buttonStyles({
   return cn(base, variants[variant], sizes[size], block && 'w-full', !isStatic && 'active:scale-(--scale-press)');
 }
 
-export interface ButtonProps extends ButtonStyleOptions, ComponentPropsWithoutRef<'button'> {
+export interface ButtonProps extends ButtonStyleOptions, ComponentPropsWithRef<'button'> {
   children: ReactNode;
 }
 
