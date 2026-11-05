@@ -147,7 +147,15 @@ Run from the repository root:
 - **Smoke test:** exercises the deployed API end to end, including a real presigned upload to S3 and checks that S3 rejects a mismatched file type.
 - **GitHub Actions** (`.github/workflows/ci.yml`) runs lint, type-check, the web build and all tests on every push and pull request, on Linux.
 
-Deployments are run manually with `cdk deploy`. See [Account constraints](#account-constraints) for why the pipeline does not deploy yet.
+### Continuous deployment
+
+Every push to `main` that passes the checks is deployed by the `deploy` job of the same workflow:
+
+1. It runs only after `verify` succeeds, only for pushes to `main` (never for pull requests), and one at a time (`concurrency`).
+2. It uses the GitHub environment `production`, which only `main` can deploy to. The environment holds the AWS credentials as secrets and the public `NEXT_PUBLIC_*` values as variables.
+3. It builds the site with the real values and runs `cdk deploy --all`.
+
+AWS access goes through the `github-deployer` IAM user (`CiStack`). Its only permission is `sts:AssumeRole` on the CDK bootstrap roles, so the key alone can't read or change anything: every change goes through CloudFormation. An access key is used instead of OIDC because of the account's SCP (see [Account constraints](#account-constraints)).
 
 ## Security
 
@@ -174,7 +182,7 @@ The project runs on an AWS Free plan account, whose organization service control
 | Only `us-east-2` is allowed | Everything is deployed there. No custom domain, because the ACM certificate for CloudFront must live in `us-east-1`. |
 | Bedrock inference quotas are 0 | AI extraction is on hold until the quota is raised; a support case is open. |
 | Textract is denied by an SCP | It can't be used as an alternative extractor. |
-| IAM OIDC providers are denied | GitHub Actions can't deploy with OIDC, and long-lived access keys were deliberately not used. Deploys stay manual for now. |
+| IAM OIDC providers are denied | GitHub Actions can't use OIDC. It deploys with the access key of an IAM user that can only assume the CDK bootstrap roles, kept in a protected environment. This is a temporary exception: once the account allows OIDC, the key will be replaced by an OIDC role and deleted. |
 
 ## Roadmap
 
@@ -182,4 +190,4 @@ The project runs on an AWS Free plan account, whose organization service control
 2. ✅ **API:** expenses CRUD with API Gateway, Lambda and DynamoDB
 3. 🚧 **Processing:** presigned uploads ✅; EventBridge, Step Functions and Bedrock extraction pending the quota
 4. 🔲 **Resilience and notifications:** DLQ, retries, idempotency, cleanup jobs (TTL for abandoned uploads, unconfirmed users), monthly email summary with SES
-5. 🚧 **Operations:** tests and CI ✅; observability, alarms and continuous deployment pending
+5. 🚧 **Operations:** tests, CI and continuous deployment ✅; observability and alarms pending

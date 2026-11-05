@@ -10,6 +10,7 @@ AWS CDK v2 app (TypeScript) that defines every AWS resource of Receipts App. All
 | `DataStack` | DynamoDB table (on-demand, `PK`/`SK` + `GSI1`) and the private receipts bucket (EventBridge notifications, CORS for browser `POST` uploads) | — |
 | `ApiStack` | API Gateway HTTP API with a Cognito JWT authorizer as the default; one Lambda per route, each with its own role and a one-week log group | Auth, Data |
 | `WebStack` | Private site bucket, CloudFront distribution (OAC, HTTPS redirect, URL rewrite function, security headers policy) and the deployment of `apps/web/out` | Api |
+| `CiStack` | The `github-deployer` IAM user for GitHub Actions. Its only permission is `sts:AssumeRole` on the CDK bootstrap roles; its access key is created by hand in the console, never in the stack | — |
 
 Cross-stack references (for example the table passed to `ApiStack`) become CloudFormation exports and imports. An exported value can't be removed while another stack still imports it.
 
@@ -75,4 +76,5 @@ aws cloudformation describe-stacks --stack-name AuthStack --query "Stacks[0].Out
 ## Notes
 
 - **Custom-resource log groups:** custom-resource Lambdas that CDK adds (bucket auto-delete, bucket notifications) create their own log groups at runtime. Those are not managed by the stack and are left behind after `cdk destroy`.
+- **Deleting `CiStack`:** delete the `github-deployer` access key first. CloudFormation can't delete a user that still has an access key it didn't create.
 - **Invalidation permission:** `BucketDeployment` grants `cloudfront:CreateInvalidation` on `*`. That is a CDK limitation, scoped to the deployment helper Lambda.

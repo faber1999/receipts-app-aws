@@ -28,6 +28,7 @@ No agregar funcionalidades fuera de este alcance sin pedirlo.
 - **Tests:** Vitest (lógica) + `aws-cdk-lib/assertions` (infra)
 - **Monorepo:** pnpm workspaces
 - **CI/CD:** GitHub Actions con OIDC hacia AWS (sin access keys)
+  - **Excepción temporal:** la SCP del plan Free niega `iam:CreateOpenIDConnectProvider`. Mientras tanto se despliega con la access key del usuario `github-deployer` (`CiStack`), cuyo único permiso es `sts:AssumeRole` sobre los roles de bootstrap de CDK; la key vive en el environment `production` de GitHub, limitado a `main`. Al pasar al plan de pago: crear el rol OIDC, borrar la key y el usuario.
 
 ## Arquitectura
 
