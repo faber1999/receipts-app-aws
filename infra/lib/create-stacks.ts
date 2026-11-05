@@ -1,6 +1,7 @@
 import { type App, type Environment, Tags } from 'aws-cdk-lib';
 import { ApiStack } from './stacks/api-stack';
 import { AuthStack } from './stacks/auth-stack';
+import { CiStack } from './stacks/ci-stack';
 import { DataStack } from './stacks/data-stack';
 import { WebStack } from './stacks/web-stack';
 
@@ -11,6 +12,7 @@ export interface ReceiptsStacks {
   data: DataStack;
   api: ApiStack;
   web: WebStack;
+  ci: CiStack;
 }
 
 /** Creates and wires every stack. Used by bin/app.ts and by the infra tests, so both see the same app. */
@@ -28,6 +30,7 @@ export function createStacks(app: App, env: Environment): ReceiptsStacks {
     allowedOrigins: ALLOWED_ORIGINS,
   });
   const web = new WebStack(app, 'WebStack', { env, apiUrl: api.apiUrl });
+  const ci = new CiStack(app, 'CiStack', { env });
 
-  return { auth, data, api, web };
+  return { auth, data, api, web, ci };
 }

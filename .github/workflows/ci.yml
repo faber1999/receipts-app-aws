@@ -44,3 +44,48 @@ jobs:
 
       - name: Unit and infrastructure tests
         run: pnpm test
+
+  deploy:
+    name: Deploy to AWS
+    needs: verify
+    # Only after a push to main, never on pull requests.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    # One deploy at a time; a newer push waits instead of running in parallel.
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    env:
+      # Real, public values from the "production" environment variables.
+      NEXT_PUBLIC_USER_POOL_ID: ${{ vars.NEXT_PUBLIC_USER_POOL_ID }}
+      NEXT_PUBLIC_USER_POOL_CLIENT_ID: ${{ vars.NEXT_PUBLIC_USER_POOL_CLIENT_ID }}
+      NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_API_URL }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # This build is the one that gets deployed, so it uses the real values.
+      - name: Build web
+        run: pnpm --filter @receipts-app/web build
+
+      # The github-deployer user can only assume the CDK bootstrap roles.
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-2
+
+      - name: Deploy all stacks
+        working-directory: infra
+        run: pnpm exec cdk deploy --all --require-approval never
