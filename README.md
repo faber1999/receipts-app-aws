@@ -13,7 +13,7 @@ The domain is deliberately small. The interesting part is the AWS architecture, 
 | Sign up, email confirmation (OTP), sign in, password reset | ✅ Done |
 | Expenses: list by month, totals by category, create, edit, delete | ✅ Done |
 | Upload a receipt photo (presigned POST to S3) | ✅ Backend done, UI pending |
-| AI extraction of merchant, total, date and category | ⏳ Waiting for Bedrock quota (see [Account constraints](#account-constraints)) |
+| AI extraction of merchant, total, date and category | 🚧 Extractor done (Claude Haiku 5.5); processing workflow in progress |
 | Monthly summary by email | 🔲 Planned |
 
 The UI is bilingual (English by default, Spanish) and follows WCAG 2.2 AA.
@@ -32,12 +32,24 @@ flowchart LR
   user -- photo upload --> receipts[(S3: receipts)]
   receipts -. Object Created .-> eb[EventBridge]
   eb -.-> sfn[Step Functions]
-  sfn -.-> ai[Bedrock<br/>extraction]
+  sfn -.-> extract[Lambda: extract-receipt]
+  extract -.-> ai[Anthropic API<br/>Claude Haiku 5.5]
+  extract -. API key .-> ssm[SSM Parameter Store]
   sfn -.-> ddb
   sfn -. on failure .-> dlq[SQS DLQ]
 ```
 
-Dotted lines are the processing pipeline, planned for when the Bedrock quota is enabled.
+Dotted lines are the processing pipeline, which is being built.
+
+### AI extraction
+
+The `extract-receipt` Lambda sends the receipt photo to **Claude Haiku 5.5** through the Anthropic API and gets back JSON that matches the shared Zod contract (`receiptExtractionSchema`), thanks to structured outputs. When the photo is not a readable receipt, the model returns no expense and a reason, instead of guessing, and the receipt is marked `FAILED`.
+
+- **Why not Bedrock:** the original design used Amazon Bedrock. On this new account every Bedrock inference quota is 0, and AWS Support declined to raise them until the account has more usage history (see [Account constraints](#account-constraints)).
+- **Swappable provider:** the handler depends on a `ReceiptExtractor` function type, so moving back to Bedrock only needs a new implementation.
+- **Secrets:** the API key belongs to a dedicated service account, lives in an SSM `SecureString`, and is read at runtime with Powertools Parameters. It never appears in code, environment variables or CloudFormation.
+- **Cost:** about $0.0004 per receipt. The Claude Console organization has a monthly spend limit, so a bug or abuse can't run up the bill.
+- **Prompt injection:** text printed on the receipt is treated as data, and the output is validated with Zod like any other external input.
 
 ### Request flow
 
@@ -60,7 +72,8 @@ An expense is a discriminated union on `status`: `PROCESSED` items have merchant
 - **Language:** TypeScript (strict) everywhere, TypeScript 7
 - **Infrastructure:** AWS CDK v2
 - **Frontend:** Next.js 16 static export, React 19, Tailwind CSS v4, Amplify Auth
-- **Backend:** AWS Lambda (Node.js 24, arm64) bundled with esbuild, Powertools Logger, AWS SDK v3
+- **Backend:** AWS Lambda (Node.js 24, arm64) bundled with esbuild, Powertools (Logger, Parameters), AWS SDK v3
+- **AI:** Claude Haiku 5.5 through the Anthropic TypeScript SDK, with structured outputs
 - **Contracts:** Zod schemas shared by the web, the API and the tests
 - **Tests:** Vitest (unit), `aws-cdk-lib/assertions` (infrastructure), an end-to-end smoke test against the deployed API
 - **Tooling:** pnpm workspaces, Biome (lint and format), GitHub Actions
@@ -180,7 +193,7 @@ The project runs on an AWS Free plan account, whose organization service control
 | Constraint | Effect on the project |
 |---|---|
 | Only `us-east-2` is allowed | Everything is deployed there. No custom domain, because the ACM certificate for CloudFront must live in `us-east-1`. |
-| Bedrock inference quotas are 0 | AI extraction is on hold until the quota is raised; a support case is open. |
+| Bedrock inference quotas are 0 | AWS Support declined the increase until the account has more usage. AI extraction uses the Anthropic API instead (see [AI extraction](#ai-extraction)). |
 | Textract is denied by an SCP | It can't be used as an alternative extractor. |
 | IAM OIDC providers are denied | GitHub Actions can't use OIDC. It deploys with the access key of an IAM user that can only assume the CDK bootstrap roles, kept in a protected environment. This is a temporary exception: once the account allows OIDC, the key will be replaced by an OIDC role and deleted. |
 
@@ -188,6 +201,6 @@ The project runs on an AWS Free plan account, whose organization service control
 
 1. ✅ **Base:** monorepo, CDK bootstrap, Cognito, site on CloudFront
 2. ✅ **API:** expenses CRUD with API Gateway, Lambda and DynamoDB
-3. 🚧 **Processing:** presigned uploads ✅; EventBridge, Step Functions and Bedrock extraction pending the quota
+3. 🚧 **Processing:** presigned uploads ✅, AI extraction with Claude ✅; EventBridge and Step Functions workflow in progress
 4. 🔲 **Resilience and notifications:** DLQ, retries, idempotency, cleanup jobs (TTL for abandoned uploads, unconfirmed users), monthly email summary with SES
 5. 🚧 **Operations:** tests, CI and continuous deployment ✅; observability and alarms pending

@@ -27,6 +27,14 @@ The package exports TypeScript source directly (`exports: ./src/index.ts`), with
 | `createReceiptUploadResponseSchema` | The pending expense and the presigned POST (`url` and `fields`) |
 | `MAX_RECEIPT_BYTES`, `RECEIPT_CONTENT_TYPES` | Upload limits, also enforced by the S3 POST policy |
 
+### `receipts/receipt-extraction.ts`
+
+| Export | Describes |
+|---|---|
+| `receiptExtractionSchema` / `ReceiptExtraction` | What the AI returns for a receipt photo: `expense` (the same fields as a manual entry, `createExpenseInputSchema`) or `null` with an `unreadableReason` |
+
+The API passes this schema to Claude as a structured output. Constraints the model API doesn't support (the currency regex, string lengths, `nonnegative`) are removed from what is sent and checked by Zod on the response.
+
 ## Usage
 
 ```ts

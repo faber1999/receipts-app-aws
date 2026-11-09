@@ -16,6 +16,25 @@ Every route requires a Cognito **access token** (`Authorization: Bearer <token>`
 
 Invalid input returns `400` with the Zod field errors.
 
+## Receipt processing
+
+`receipts/handlers/extract-receipt.ts` is not an HTTP handler: the processing workflow (Step Functions) invokes it with the uploaded object (`{ bucket, key }`).
+
+1. It parses the S3 key to learn the owner, the receipt id and the content type (`receipts/receipt-key.ts`). Keys the app didn't create throw `NotAReceiptError`.
+2. It downloads the photo and sends it to Claude Haiku 5.5 (`receipts/receipt-extractor.ts`), with structured outputs bound to `receiptExtractionSchema`.
+3. It returns `{ userId, receiptId, expense }`. It doesn't write to DynamoDB: that is a separate workflow step, so a failed write is retried without paying for the model call again.
+
+| Error (`errorType` in Step Functions) | Meaning | Workflow reaction |
+|---|---|---|
+| `UnreadableReceiptError` | The photo is not a readable receipt; the model said why | Mark `FAILED`, no retry |
+| `ReceiptExtractionError` | Refusal, truncated or invalid model output | Mark `FAILED` |
+| `NotAReceiptError` | Object outside the app's key format | Ignore |
+| Others (network, throttling) | Transient | Retry |
+
+The Anthropic API key is read from the SSM `SecureString` named by `ANTHROPIC_API_KEY_PARAMETER`, through Powertools Parameters with a 5-minute cache, so a rotated key is picked up without a redeploy. Logs never include the merchant or the total.
+
+Bedrock was the original choice; see the root README for why the Anthropic API is used instead.
+
 ## Design
 
 - **Thin handlers:** each one parses and validates input, calls the domain code, and shapes the HTTP response. DynamoDB mapping lives in `expenses/expense-repository.ts`, as pure functions that are unit-tested.
@@ -39,9 +58,13 @@ src/
 │  ├─ handlers/                  One file per Lambda
 │  ├─ expense-repository.ts      Contract ↔ DynamoDB item mapping
 │  └─ expense-repository.test.ts
-├─ receipts/handlers/            Receipt upload Lambda
+├─ receipts/
+│  ├─ handlers/                  Receipt upload (HTTP) and extraction (workflow) Lambdas
+│  ├─ receipt-key.ts             Builds and parses receipts/<userId>/<id>.<ext>
+│  └─ receipt-extractor.ts       Claude extraction behind the ReceiptExtractor type
 └─ shared/                       auth (JWT sub), db client, env, HTTP helpers
 scripts/smoke-test.ts            End-to-end test against the deployed API
+scripts/try-extraction.ts        Runs the extractor on a local photo
 ```
 
 ## Scripts
@@ -50,6 +73,7 @@ scripts/smoke-test.ts            End-to-end test against the deployed API
 |---|---|
 | `pnpm test` | Unit tests (Vitest) |
 | `pnpm smoke` | Smoke test against the deployed API |
+| `pnpm exec tsx scripts/try-extraction.ts <photo>` | Extracts one local receipt photo with Claude. Reads the API key from SSM (needs `aws login`) and costs a fraction of a cent per run |
 
 ### Smoke test
 

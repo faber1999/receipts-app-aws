@@ -44,7 +44,7 @@ Next.js (S3 + CloudFront)
                            EventBridge (Object Created)
                                         │
                   Step Functions:
-                    1. Bedrock extrae datos de la imagen (JSON)
+                    1. Lambda extrae datos de la imagen con Claude (API de Anthropic, JSON)
                     2. Validación con Zod
                     3. Guarda en DynamoDB (status: PROCESSED)
                     4. Si falla → status: FAILED + mensaje a SQS DLQ
@@ -61,13 +61,23 @@ Next.js (S3 + CloudFront)
 | Persistencia | DynamoDB (single-table, on-demand) |
 | Subida de imágenes | S3 + presigned URLs |
 | Procesamiento async | EventBridge + Step Functions |
-| Extracción con IA | Amazon Bedrock (modelo multimodal económico) |
+| Extracción con IA | API de Anthropic (Claude Haiku 5.5) desde Lambda; API key en SSM SecureString. Ver "Extracción con IA" abajo |
 | Errores y reintentos | SQS + DLQ |
 | Resumen mensual | EventBridge Scheduler + Lambda + SES |
 | Hosting frontend | S3 + CloudFront (+ ACM y dominio propio) |
 | Configuración/secretos | SSM Parameter Store |
 | Observabilidad | CloudWatch, X-Ray, Powertools |
 | Seguridad | IAM least-privilege; WAF solo para práctica temporal |
+
+### Extracción con IA: por qué no Bedrock
+
+- **Plan original:** Amazon Bedrock (Nova Lite en `us-east-2`).
+- **Por qué cambió:** la cuenta es nueva (plan Free) y todas sus cuotas de inferencia de Bedrock están en 0. AWS Support rechazó el aumento (noviembre 2026) hasta que la cuenta tenga más historial de uso. Textract también está negado por SCP.
+- **Alternativa actual:** la Lambda `extract-receipt` llama a la API de Anthropic con `@anthropic-ai/sdk`:
+  - Modelo `claude-haiku-5-5` (el más barato con visión), `effort: 'low'`, structured outputs con el schema Zod `receiptExtractionSchema` de `contracts`.
+  - Costo aproximado: $0.0004 por recibo. Se paga con los créditos mensuales de API del plan Max del usuario. La organización de la Claude Console tiene un límite de gasto de $10 al mes; al agotarse, las llamadas fallan sin cobro extra.
+  - API key de una cuenta de servicio (`receipts-app`, workspace `personal-projects`, vence 2027-02-28) guardada en SSM SecureString `/receipts-app/anthropic-api-key`. Se lee con Powertools Parameters (caché de 5 min). Nunca va en código, variables de entorno ni CloudFormation.
+- **Para volver a Bedrock:** el extractor es el tipo `ReceiptExtractor` (`services/api/src/receipts/receipt-extractor.ts`); basta con otra implementación. Reintentar la solicitud de cuota cuando la cuenta tenga más uso.
 
 ## Modelo de datos (DynamoDB single-table)
 
@@ -104,7 +114,7 @@ Stacks CDK sugeridos: `AuthStack`, `DataStack`, `ApiStack`, `ProcessingStack`, `
 
 1. **Base:** monorepo, CDK bootstrap, Cognito, front en CloudFront
 2. **API:** CRUD de gastos con API Gateway + Lambda + DynamoDB
-3. **Procesamiento:** presigned URLs, EventBridge, Step Functions, Bedrock
+3. **Procesamiento:** presigned URLs, EventBridge, Step Functions, extracción con IA (Claude vía API de Anthropic)
 4. **Resiliencia y notificaciones:** DLQ, reintentos, idempotencia, resumen mensual con SES
 5. **Operación:** CI/CD con GitHub Actions + OIDC, observabilidad, alarmas, README con diagrama y estimación de costos
 
@@ -114,14 +124,14 @@ Stacks CDK sugeridos: `AuthStack`, `DataStack`, `ApiStack`, `ProcessingStack`, `
 - DynamoDB en modo on-demand.
 - Usar SSM Parameter Store en lugar de Secrets Manager.
 - WAF y Route 53 hosted zones solo si se piden explícitamente (tienen costo fijo).
-- Bedrock: usar el modelo multimodal más barato disponible en la región.
+- Extracción con IA: usar el modelo con visión más barato (hoy `claude-haiku-5-5`, `effort: 'low'`) y mantener el límite de gasto de la Claude Console.
 - Todos los recursos deben poder eliminarse con `cdk destroy` (`RemovalPolicy.DESTROY` y `autoDeleteObjects` en entornos `dev`).
 - Etiquetar todos los recursos con `project=receipts-app`.
 
 ## Convenciones de código
 
 - TypeScript estricto, tipos explícitos en límites públicos (handlers, props de constructs).
-- Validar todo input externo (API, eventos, respuesta de Bedrock) con Zod.
+- Validar todo input externo (API, eventos, respuesta del modelo de IA) con Zod.
 - Handlers delgados: lógica de negocio en funciones puras testeables.
 - Un construct de CDK por responsabilidad; no meter todo en un solo stack.
 - IAM: usar `grant*` de CDK, nunca políticas con `*`.
