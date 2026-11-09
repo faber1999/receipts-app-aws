@@ -9,39 +9,14 @@
  * It creates its own expense and receipt and deletes them at the end. The tiny test photo stays in
  * the receipts bucket until expenses delete their image (later phase).
  */
-import { execFile } from 'node:child_process';
-import { createInterface } from 'node:readline/promises';
-import { promisify } from 'node:util';
 import { createReceiptUploadResponseSchema, expenseSchema, listExpensesResponseSchema } from '@receipts-app/contracts';
-
-const run = promisify(execFile);
+import { postToS3, type Response, resolveApiUrl, resolveToken } from './script-helpers';
 
 /** A valid 1×1 transparent PNG, small enough to keep the test cheap. */
 const TINY_PNG = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
   'base64',
 );
-
-/** Sends a presigned POST to S3: the signed fields first, the file last (S3 requires that order). */
-async function postToS3(
-  url: string,
-  fields: Record<string, string>,
-  file: Blob,
-  contentType: string,
-): Promise<Response> {
-  const form = new FormData();
-  for (const [name, value] of Object.entries({ ...fields, 'Content-Type': contentType })) {
-    form.append(name, value);
-  }
-  form.append('file', file);
-  const response = await fetch(url, { method: 'POST', body: form });
-  return { status: response.status, data: await response.text() };
-}
-
-interface Response {
-  status: number;
-  data: unknown;
-}
 
 interface CheckResult {
   name: string;
@@ -51,33 +26,6 @@ interface CheckResult {
 }
 
 const results: CheckResult[] = [];
-
-async function resolveApiUrl(): Promise<string> {
-  if (process.env.API_URL) {
-    return process.env.API_URL.replace(/\/$/, '');
-  }
-  const { stdout } = await run('aws', [
-    'cloudformation',
-    'describe-stacks',
-    '--stack-name',
-    'ApiStack',
-    '--query',
-    "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue",
-    '--output',
-    'text',
-  ]);
-  return stdout.trim().replace(/\/$/, '');
-}
-
-async function resolveToken(): Promise<string> {
-  if (process.env.API_TOKEN) {
-    return process.env.API_TOKEN.trim();
-  }
-  const prompt = createInterface({ input: process.stdin, output: process.stdout });
-  const token = await prompt.question('Cognito access token: ');
-  prompt.close();
-  return token.trim();
-}
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
