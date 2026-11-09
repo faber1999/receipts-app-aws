@@ -7,7 +7,6 @@ import {
   type CreateReceiptUploadResponse,
   createReceiptUploadInputSchema,
   MAX_RECEIPT_BYTES,
-  type ReceiptContentType,
   type UnprocessedExpense,
 } from '@receipts-app/contracts';
 import type { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyResultV2 } from 'aws-lambda';
@@ -17,14 +16,10 @@ import { getUserId } from '../../shared/auth';
 import { db } from '../../shared/db';
 import { env } from '../../shared/env';
 import { json, parseJsonBody } from '../../shared/http';
+import { buildReceiptKey } from '../receipt-key';
 
 const logger = new Logger({ serviceName: 'expenses-api' });
 const s3 = new S3Client({});
-
-const EXTENSIONS: Record<ReceiptContentType, string> = {
-  'image/jpeg': 'jpg',
-  'image/png': 'png',
-};
 
 const UPLOAD_EXPIRES_SECONDS = 300;
 
@@ -39,8 +34,7 @@ export async function handler(event: APIGatewayProxyEventV2WithJWTAuthorizer): P
   const { contentType } = parsed.data;
   const id = randomUUID();
   const now = new Date();
-  // The owner's id is part of the key, so the processing workflow knows whose receipt it is from the S3 event alone.
-  const imageKey = `receipts/${userId}/${id}.${EXTENSIONS[contentType]}`;
+  const imageKey = buildReceiptKey({ userId, receiptId: id, contentType });
 
   const expense: UnprocessedExpense = {
     id,
