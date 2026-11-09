@@ -3,6 +3,7 @@ import { ApiStack } from './stacks/api-stack';
 import { AuthStack } from './stacks/auth-stack';
 import { CiStack } from './stacks/ci-stack';
 import { DataStack } from './stacks/data-stack';
+import { ProcessingStack } from './stacks/processing-stack';
 import { WebStack } from './stacks/web-stack';
 
 export const ALLOWED_ORIGINS = ['http://localhost:3000', 'https://d320g8bknug8ck.cloudfront.net'];
@@ -11,6 +12,7 @@ export interface ReceiptsStacks {
   auth: AuthStack;
   data: DataStack;
   api: ApiStack;
+  processing: ProcessingStack;
   web: WebStack;
   ci: CiStack;
 }
@@ -29,8 +31,13 @@ export function createStacks(app: App, env: Environment): ReceiptsStacks {
     receiptsBucket: data.receiptsBucket,
     allowedOrigins: ALLOWED_ORIGINS,
   });
+  const processing = new ProcessingStack(app, 'ProcessingStack', {
+    env,
+    table: data.table,
+    receiptsBucket: data.receiptsBucket,
+  });
   const web = new WebStack(app, 'WebStack', { env, apiUrl: api.apiUrl });
   const ci = new CiStack(app, 'CiStack', { env });
 
-  return { auth, data, api, web, ci };
+  return { auth, data, api, processing, web, ci };
 }
