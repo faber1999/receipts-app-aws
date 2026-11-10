@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect } from 'react';
 import { useAuth } from '@/features/auth/auth-provider';
 import { createExpense, deleteExpense, listExpenses, updateExpense } from '@/features/expenses/api';
+import { uploadReceipt } from '@/features/receipts/api';
 import { type ExpensesApi, ExpensesWorkspace } from './expenses-workspace';
 
 const expensesApi: ExpensesApi = {
@@ -11,6 +12,7 @@ const expensesApi: ExpensesApi = {
   create: createExpense,
   update: updateExpense,
   remove: deleteExpense,
+  uploadReceipt,
 };
 
 export function ExpensesView() {

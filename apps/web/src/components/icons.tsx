@@ -120,3 +120,40 @@ export function UserIcon(props: IconProps) {
     </Icon>
   );
 }
+
+export function UploadIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M8 10.25V2.75M5 5.5l3-2.75 3 2.75M2.75 10v1.75a1.5 1.5 0 0 0 1.5 1.5h7.5a1.5 1.5 0 0 0 1.5-1.5V10" />
+    </Icon>
+  );
+}
+
+export function CameraIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M2.25 5.75a1.5 1.5 0 0 1 1.5-1.5h1.5l1-1.5h3.5l1 1.5h1.5a1.5 1.5 0 0 1 1.5 1.5v5.5a1.5 1.5 0 0 1-1.5 1.5h-8.5a1.5 1.5 0 0 1-1.5-1.5z" />
+      <circle cx="8" cy="8.25" r="2.25" />
+    </Icon>
+  );
+}
+
+export function ImageIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="2.25" y="2.75" width="11.5" height="10.5" rx="1.5" />
+      <circle cx="5.75" cy="6.25" r="1" />
+      <path d="m2.75 11.5 3.25-3 2.5 2.25 1.75-1.5 3 2.5" />
+    </Icon>
+  );
+}
+
+/** A receipt with the brand's torn bottom edge. */
+export function ReceiptIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M3.75 13.25V2.75h8.5v10.5l-1.42-1-1.41 1-1.42-1-1.42 1-1.41-1z" />
+      <path d="M6 5.75h4M6 8.25h2.5" />
+    </Icon>
+  );
+}

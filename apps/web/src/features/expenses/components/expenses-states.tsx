@@ -1,6 +1,6 @@
 'use client';
 
-import { AlertIcon, PlusIcon, RefreshIcon } from '@/components/icons';
+import { AlertIcon, PlusIcon, RefreshIcon, UploadIcon } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { useI18n } from '@/i18n/i18n-provider';
 import { cn } from '@/lib/cn';
@@ -73,10 +73,11 @@ export interface ExpensesEmptyStateProps {
   /** The current month keeps the first-run teaching copy; a past month just says it is empty. */
   isCurrentMonth: boolean;
   onAdd: () => void;
+  onUpload: () => void;
 }
 
 /** An empty month: say which month, teach what fills it, and offer the one action that does. */
-export function ExpensesEmptyState({ monthLabel, isCurrentMonth, onAdd }: ExpensesEmptyStateProps) {
+export function ExpensesEmptyState({ monthLabel, isCurrentMonth, onAdd, onUpload }: ExpensesEmptyStateProps) {
   const { t } = useI18n();
   const { empty } = t.expenses;
 
@@ -104,10 +105,16 @@ export function ExpensesEmptyState({ monthLabel, isCurrentMonth, onAdd }: Expens
       <p className="mt-2 max-w-sm text-sm text-pretty text-ink-muted">
         {isCurrentMonth ? empty.currentDescription : empty.pastDescription}
       </p>
-      <Button onClick={onAdd} className="mt-6 pl-3.5">
-        <PlusIcon />
-        {t.expenses.addExpense}
-      </Button>
+      <div className="mt-6 flex flex-wrap justify-center gap-2 sm:gap-3">
+        <Button variant="secondary" onClick={onAdd} className="pl-3.5">
+          <PlusIcon />
+          {t.expenses.addExpense}
+        </Button>
+        <Button onClick={onUpload} className="pl-3.5">
+          <UploadIcon />
+          {t.expenses.uploadReceipt}
+        </Button>
+      </div>
     </section>
   );
 }

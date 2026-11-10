@@ -101,6 +101,7 @@ export const es: Dictionary = {
     title: 'Tus gastos',
     description: 'Tus recibos y en qué se va tu dinero, mes a mes.',
     addExpense: 'Agregar gasto',
+    uploadReceipt: 'Subir recibo',
     month: {
       previous: 'Mes anterior',
       next: 'Mes siguiente',
@@ -146,7 +147,7 @@ export const es: Dictionary = {
     empty: {
       // Month names are lowercase mid-sentence in Spanish ("noviembre de 2026").
       title: (month: string) => `No hay gastos en ${month.toLocaleLowerCase('es')}`,
-      currentDescription: 'Agrega tu primer gasto del mes para ver el total y en qué se va tu dinero por categoría.',
+      currentDescription: 'Sube un recibo o agrega un gasto para ver el total y en qué se va tu dinero por categoría.',
       pastDescription: 'No se registró nada este mes. Agrega un gasto con fecha de ese mes o cambia de mes.',
     },
     loading: (month: string) => `Cargando los gastos de ${month.toLocaleLowerCase('es')}…`,
@@ -190,6 +191,8 @@ export const es: Dictionary = {
       updated: 'Cambios guardados',
       deleted: 'Gasto eliminado',
       receiptDeleted: 'Recibo eliminado',
+      receiptUploaded: 'Recibo subido. Lo estamos leyendo.',
+      receiptFiled: 'Recibo leído. Quedó guardado en la fecha del recibo, en otro mes.',
     },
     apiErrors: {
       invalid: 'Algunos datos no fueron aceptados. Revísalos e inténtalo de nuevo.',
@@ -197,6 +200,34 @@ export const es: Dictionary = {
       notFound: 'Este gasto ya no existe. Es posible que se haya eliminado.',
       saveFailed: 'No se pudo guardar el gasto. Revisa tu conexión e inténtalo de nuevo.',
       deleteFailed: 'No se pudo eliminar el gasto. Revisa tu conexión e inténtalo de nuevo.',
+    },
+  },
+  receipts: {
+    upload: {
+      title: 'Subir un recibo',
+      description: 'La IA lee el comercio, el total, la fecha y la categoría de la foto.',
+      prompt: 'Agrega una foto del recibo',
+      dropHint: 'Arrástrala aquí o elige un archivo.',
+      formats: 'JPEG o PNG',
+      takePhoto: 'Tomar foto',
+      choosePhoto: 'Elegir foto',
+      chooseFile: 'Elegir archivo',
+      dropActive: 'Suelta la foto para subirla',
+      tipLead: '¿Recibo largo?',
+      tip: 'Dóblalo para que el nombre de la tienda y el total quepan en una sola foto.',
+      preparing: 'Preparando la foto…',
+      uploading: 'Subiendo el recibo…',
+      cancel: 'Cancelar',
+      close: 'Cerrar',
+      errors: {
+        unreadable: 'No pudimos abrir esta imagen. Prueba con una foto JPEG o PNG.',
+        tooLarge: 'Esta foto es demasiado grande para subirla, incluso reducida. Prueba con otra.',
+        unauthorized: 'Tu sesión expiró. Inicia sesión de nuevo para continuar.',
+        apiFailed: 'No pudimos iniciar la subida. Inténtalo de nuevo en un momento.',
+        rejected: 'El almacenamiento rechazó la foto. Inténtalo de nuevo o usa otra foto.',
+        network: 'La subida no se completó. Revisa tu conexión e inténtalo de nuevo.',
+        failed: 'Algo salió mal con la subida. Inténtalo de nuevo.',
+      },
     },
   },
   categories: {

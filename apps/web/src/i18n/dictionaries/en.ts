@@ -98,6 +98,7 @@ export const en = {
     title: 'Your expenses',
     description: 'Your receipts and where your money went, month by month.',
     addExpense: 'Add expense',
+    uploadReceipt: 'Upload receipt',
     month: {
       previous: 'Previous month',
       next: 'Next month',
@@ -142,8 +143,7 @@ export const en = {
     },
     empty: {
       title: (month: string) => `No expenses in ${month}`,
-      currentDescription:
-        'Add your first expense of the month to see your total and where your money goes by category.',
+      currentDescription: 'Upload a receipt or add an expense to see your total and where your money goes by category.',
       pastDescription: 'Nothing was recorded this month. Add an expense dated in it, or switch months.',
     },
     loading: (month: string) => `Loading expenses for ${month}…`,
@@ -186,6 +186,8 @@ export const en = {
       updated: 'Changes saved',
       deleted: 'Expense deleted',
       receiptDeleted: 'Receipt deleted',
+      receiptUploaded: 'Receipt uploaded. We’re reading it now.',
+      receiptFiled: 'Receipt read. It’s filed under its receipt date, in another month.',
     },
     apiErrors: {
       invalid: 'Some details weren’t accepted. Check them and try again.',
@@ -193,6 +195,34 @@ export const en = {
       notFound: 'This expense no longer exists. It may have been deleted.',
       saveFailed: 'Couldn’t save the expense. Check your connection and try again.',
       deleteFailed: 'Couldn’t delete the expense. Check your connection and try again.',
+    },
+  },
+  receipts: {
+    upload: {
+      title: 'Upload a receipt',
+      description: 'AI reads the merchant, total, date and category from the photo.',
+      prompt: 'Add a photo of the receipt',
+      dropHint: 'Drag it here, or choose a file.',
+      formats: 'JPEG or PNG',
+      takePhoto: 'Take photo',
+      choosePhoto: 'Choose photo',
+      chooseFile: 'Choose file',
+      dropActive: 'Drop the photo to upload it',
+      tipLead: 'Long receipt?',
+      tip: 'Fold it so the store name and the total fit in one photo.',
+      preparing: 'Preparing photo…',
+      uploading: 'Uploading receipt…',
+      cancel: 'Cancel',
+      close: 'Close',
+      errors: {
+        unreadable: 'We couldn’t open this image. Try a JPEG or PNG photo.',
+        tooLarge: 'This photo is too large to upload, even after resizing. Try another one.',
+        unauthorized: 'Your session has expired. Sign in again to continue.',
+        apiFailed: 'We couldn’t start the upload. Try again in a moment.',
+        rejected: 'The photo was rejected by storage. Try again, or use a different photo.',
+        network: 'The upload didn’t go through. Check your connection and try again.',
+        failed: 'Something went wrong with the upload. Try again.',
+      },
     },
   },
   categories: {
