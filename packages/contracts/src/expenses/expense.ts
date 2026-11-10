@@ -14,7 +14,7 @@ export const EXPENSE_CATEGORIES = [
 
 export const expenseCategorySchema = z.enum(EXPENSE_CATEGORIES);
 
-export const expenseStatusSchema = z.enum(['PENDING', 'PROCESSED', 'FAILED']);
+export const expenseStatusSchema = z.enum(['PENDING', 'REVIEW', 'PROCESSED', 'FAILED']);
 
 /** ISO 4217 code, e.g. COP or USD. */
 export const currencySchema = z.string().regex(/^[A-Z]{3}$/);

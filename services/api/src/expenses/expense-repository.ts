@@ -1,4 +1,4 @@
-import { type Expense, expenseSchema, type UpdateExpenseInput } from '@receipts-app/contracts';
+import { type Expense, type ExpenseStatus, expenseSchema, type UpdateExpenseInput } from '@receipts-app/contracts';
 
 export const userPk = (userId: string): string => `USER#${userId}`;
 export const receiptSk = (expenseId: string): string => `RECEIPT#${expenseId}`;
@@ -41,7 +41,7 @@ export function expenseKey(userId: string, expenseId: string): { PK: string; SK:
  * Every name goes through ExpressionAttributeNames because `date` and `status` are reserved words.
  * Changing the date also moves the item in GSI1, so GSI1SK is updated with it.
  */
-export function toUpdateExpression(input: UpdateExpenseInput): {
+export function toUpdateExpression(input: UpdateExpenseInput & { status?: ExpenseStatus }): {
   UpdateExpression: string;
   ExpressionAttributeNames: Record<string, string>;
   ExpressionAttributeValues: Record<string, unknown>;

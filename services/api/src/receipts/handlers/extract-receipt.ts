@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { Logger } from '@aws-lambda-powertools/logger';
 import { getParameter } from '@aws-lambda-powertools/parameters/ssm';
 import { GetObjectCommand, NoSuchKey, S3Client } from '@aws-sdk/client-s3';
-import type { CreateExpenseInput } from '@receipts-app/contracts';
+import type { ExtractedExpense } from '@receipts-app/contracts';
 import { z } from 'zod';
 import { createClaudeExtractor } from '../receipt-extractor';
 import { parseReceiptKey } from '../receipt-key';
@@ -26,7 +26,7 @@ const inputSchema = z.object({
 export interface ExtractReceiptResult {
   userId: string;
   receiptId: string;
-  expense: CreateExpenseInput;
+  expense: ExtractedExpense;
 }
 
 /** The object is not a receipt this app created. Step Functions ignores it. */
