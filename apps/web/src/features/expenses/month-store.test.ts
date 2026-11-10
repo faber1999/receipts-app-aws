@@ -1,8 +1,8 @@
-import type { ProcessedExpense } from '@receipts-app/contracts';
+import type { Expense, ProcessedExpense, UnprocessedExpense } from '@receipts-app/contracts';
 import { describe, expect, it, vi } from 'vitest';
 import { ApiError } from '@/lib/api-client';
 import type { MonthKey } from './month';
-import { type ListMonth, MonthExpensesStore } from './month-store';
+import { LAG_GRACE_MS, type ListMonth, MonthExpensesStore } from './month-store';
 
 // api-client reads the Amplify/API env at import; the store only needs ApiError, so stub the env.
 vi.mock('@/lib/env', () => ({
@@ -30,9 +30,17 @@ const A = expense('00000000-0000-4000-8000-00000000000a', '2026-11-03');
 const B = expense('00000000-0000-4000-8000-00000000000b', '2026-11-10');
 const OCT = expense('00000000-0000-4000-8000-00000000000c', '2026-10-20');
 
+const PENDING: UnprocessedExpense = {
+  id: '00000000-0000-4000-8000-00000000000d',
+  status: 'PENDING',
+  date: '2026-11-08',
+  imageKey: 'receipts/d.jpg',
+  createdAt: '2026-11-08T15:00:00.000Z',
+};
+
 interface Deferred {
   month: MonthKey;
-  resolve: (items: ProcessedExpense[]) => void;
+  resolve: (items: Expense[]) => void;
   reject: (error: unknown) => void;
 }
 
@@ -159,5 +167,117 @@ describe('MonthExpensesStore', () => {
     unsubscribe();
     store.apply({ type: 'remove', id: A.id });
     expect(listener).toHaveBeenCalledTimes(2);
+  });
+
+  describe('refresh', () => {
+    /** A store on a fake clock, with November loaded as `items`. */
+    async function loaded(items: Expense[]) {
+      let clock = 1_000_000;
+      const store = new MonthExpensesStore(() => clock);
+      store.load('2026-11', async () => items);
+      await flush();
+      return {
+        store,
+        advance: (ms: number) => {
+          clock += ms;
+        },
+      };
+    }
+
+    it('keeps the month on screen while it refetches, then shows the new list', async () => {
+      const { store } = await loaded([PENDING]);
+      const { list, calls } = controlledList();
+      const done = store.refresh('2026-11', list);
+      expect(store.get('2026-11')).toEqual({ status: 'ready', items: [PENDING] });
+      const read = expense(PENDING.id, '2026-11-08');
+      call(calls, 0).resolve([read]);
+      await done;
+      expect(store.get('2026-11')).toEqual({ status: 'ready', items: [read] });
+    });
+
+    it('does nothing for a month that is not loaded', async () => {
+      const store = new MonthExpensesStore();
+      const list = vi.fn<ListMonth>(async () => []);
+      await store.refresh('2026-11', list);
+      expect(list).not.toHaveBeenCalled();
+      expect(store.get('2026-11')).toBeUndefined();
+    });
+
+    it('keeps a just-uploaded receipt that a lagging read does not list yet', async () => {
+      const { store, advance } = await loaded([A]);
+      store.apply({ type: 'upsert', expense: PENDING }, '2026-11');
+      advance(3000);
+      await store.refresh('2026-11', async () => [A]);
+      expect(store.get('2026-11')).toEqual({ status: 'ready', items: [PENDING, A] });
+    });
+
+    it('lets the receipt go once the grace period is over (it was filed in another month)', async () => {
+      const { store, advance } = await loaded([A]);
+      store.apply({ type: 'upsert', expense: PENDING }, '2026-11');
+      advance(LAG_GRACE_MS + 1);
+      await store.refresh('2026-11', async () => [A]);
+      expect(store.get('2026-11')).toEqual({ status: 'ready', items: [A] });
+    });
+
+    it('never overwrites a server update with the older local copy', async () => {
+      const { store, advance } = await loaded([]);
+      store.apply({ type: 'upsert', expense: PENDING }, '2026-11');
+      advance(1000);
+      const read = expense(PENDING.id, '2026-11-08');
+      await store.refresh('2026-11', async () => [read]);
+      expect(store.get('2026-11')).toEqual({ status: 'ready', items: [read] });
+    });
+
+    it('replays a change made while the refresh was in flight', async () => {
+      const { store, advance } = await loaded([A, B]);
+      const { list, calls } = controlledList();
+      const done = store.refresh('2026-11', list);
+      advance(10);
+      const edited = { ...A, merchant: 'Edited' };
+      store.apply({ type: 'upsert', expense: edited });
+      store.apply({ type: 'remove', id: B.id });
+      call(calls, 0).resolve([A, B]);
+      await done;
+      expect(store.get('2026-11')).toEqual({ status: 'ready', items: [edited] });
+    });
+
+    it('keeps the last list on a failure, but reports a 401', async () => {
+      const { store } = await loaded([A]);
+      await store.refresh('2026-11', async () => {
+        throw new Error('network');
+      });
+      expect(store.get('2026-11')).toEqual({ status: 'ready', items: [A] });
+      await store.refresh('2026-11', async () => {
+        throw new ApiError(401, 'Not signed in');
+      });
+      expect(store.get('2026-11')).toEqual({ status: 'error', unauthorized: true });
+    });
+  });
+
+  describe('invalidateExcept', () => {
+    it('forgets the other months so they are fetched again', async () => {
+      const store = new MonthExpensesStore();
+      store.load('2026-10', async () => [OCT]);
+      store.load('2026-11', async () => [A]);
+      await flush();
+      store.invalidateExcept('2026-11');
+      expect(store.get('2026-10')).toBeUndefined();
+      expect(store.get('2026-11')).toEqual({ status: 'ready', items: [A] });
+
+      const list = vi.fn<ListMonth>(async () => [OCT, expense(PENDING.id, '2026-10-30')]);
+      store.ensure('2026-10', list);
+      await flush();
+      expect(list).toHaveBeenCalledTimes(1);
+    });
+
+    it('ignores a response that was already on its way for a forgotten month', async () => {
+      const store = new MonthExpensesStore();
+      const { list, calls } = controlledList();
+      store.load('2026-10', list);
+      store.invalidateExcept('2026-11');
+      call(calls, 0).resolve([OCT]);
+      await flush();
+      expect(store.get('2026-10')).toBeUndefined();
+    });
   });
 });

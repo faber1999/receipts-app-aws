@@ -1,8 +1,15 @@
 'use client';
 
-import type { CreateExpenseInput, Expense, ProcessedExpense, UpdateExpenseInput } from '@receipts-app/contracts';
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import type {
+  CreateExpenseInput,
+  Expense,
+  ProcessedExpense,
+  UnprocessedExpense,
+  UpdateExpenseInput,
+} from '@receipts-app/contracts';
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Toast } from '@/components/ui/toast';
+import { UploadReceiptDialog } from '@/features/receipts/components/upload-receipt-dialog';
 import type { Dictionary } from '@/i18n/dictionaries';
 import { useI18n } from '@/i18n/i18n-provider';
 import { moneyDisplayFor } from '@/lib/money';
@@ -10,12 +17,14 @@ import { isApiStatus } from '../errors';
 import { formatMonth } from '../format';
 import { currentMonthKey, type MonthKey, monthKeyOf, shiftMonth, summarizeMonth } from '../month';
 import { MonthExpensesStore } from '../month-store';
+import { hasPendingReceipt, settleReceipts } from '../polling';
 import { changedFields } from '../schemas';
 import { isProcessed } from '../status';
+import { useMonthPolling } from '../use-month-polling';
 import { DeleteExpenseDialog } from './delete-expense-dialog';
 import { ExpenseFormDialog, type ExpenseFormTarget } from './expense-form-dialog';
 import { EXPENSE_LIST_TITLE_ID, ExpenseList } from './expense-list';
-import { ADD_EXPENSE_BUTTON_ID, ExpensesHeader } from './expenses-header';
+import { ADD_EXPENSE_BUTTON_ID, ExpensesHeader, UPLOAD_RECEIPT_BUTTON_ID } from './expenses-header';
 import { EMPTY_STATE_TITLE_ID, ExpensesEmptyState, ExpensesLoadError, ExpensesSkeleton } from './expenses-states';
 import { MONTH_TITLE_ID, MonthSwitcher } from './month-switcher';
 import { MonthlySummary } from './monthly-summary';
@@ -27,6 +36,8 @@ export interface ExpensesApi {
   create: (input: CreateExpenseInput) => Promise<Expense>;
   update: (id: string, input: UpdateExpenseInput) => Promise<Expense>;
   remove: (id: string) => Promise<void>;
+  /** Uploads a prepared receipt photo; resolves with its PENDING expense once the photo is stored. */
+  uploadReceipt: (image: Blob) => Promise<UnprocessedExpense>;
 }
 
 export interface ExpensesWorkspaceProps {
@@ -45,6 +56,7 @@ function fallbackFocus(): HTMLElement | null {
     document.getElementById(EXPENSE_LIST_TITLE_ID) ??
     document.getElementById(EMPTY_STATE_TITLE_ID) ??
     document.getElementById(MONTH_TITLE_ID) ??
+    document.getElementById(UPLOAD_RECEIPT_BUTTON_ID) ??
     document.getElementById(ADD_EXPENSE_BUTTON_ID)
   );
 }
@@ -60,6 +72,11 @@ export function ExpensesWorkspace({ api, onUnauthorized }: ExpensesWorkspaceProp
   const [formSession, setFormSession] = useState(0);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Expense | null>(null);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [uploadSession, setUploadSession] = useState(0);
+  // Bumped per upload so polling restarts its window; deleted ids never count as "moved".
+  const [uploadCount, setUploadCount] = useState(0);
+  const deletedIds = useRef(new Set<string>());
 
   const [toast, setToast] = useState<{ key: ToastKey; id: number } | null>(null);
   const [toastOpen, setToastOpen] = useState(false);
@@ -92,6 +109,27 @@ export function ExpensesWorkspace({ api, onUnauthorized }: ExpensesWorkspaceProp
   }, []);
 
   const items = entry?.status === 'ready' ? entry.items : null;
+
+  // While receipts in this month are being read, refetch it until they settle (or polling gives up).
+  useMonthPolling({
+    store,
+    month,
+    list: api.list,
+    enabled: hasPendingReceipt(items),
+    restartKey: uploadCount,
+    onRefreshed: (refreshedMonth, before, after) => {
+      const { read, moved } = settleReceipts(before, after);
+      // The row now shows what the AI read; point the eye at it.
+      const first = read[0];
+      if (first) setHighlightId(first);
+      if (moved.some((id) => !deletedIds.current.has(id))) {
+        // Its receipt date put it in a month we cannot name: refetch any other month when it is next shown.
+        store.invalidateExcept(refreshedMonth);
+        showToast('receiptFiled');
+      }
+    },
+  });
+
   const loading = entry === undefined || entry.status === 'loading';
   const thisMonth = currentMonthKey();
   const summary = useMemo(() => summarizeMonth(items ?? []), [items]);
@@ -113,6 +151,23 @@ export function ExpensesWorkspace({ api, onUnauthorized }: ExpensesWorkspaceProp
     setFormTarget({ mode: 'edit', expense });
     setFormSession((session) => session + 1);
     setFormOpen(true);
+  }
+
+  function openUpload(): void {
+    setUploadSession((session) => session + 1);
+    setUploadOpen(true);
+  }
+
+  /** The photo is stored: show its PENDING row in its month (today's) right away; polling takes it from there. */
+  async function handleUpload(image: Blob): Promise<void> {
+    const expense = await api.uploadReceipt(image);
+    const target = monthKeyOf(expense.date);
+    store.apply({ type: 'upsert', expense }, target);
+    setMonth(target);
+    setHighlightId(expense.id);
+    setUploadCount((count) => count + 1);
+    setUploadOpen(false);
+    showToast('receiptUploaded');
   }
 
   function openDelete(expense: Expense): void {
@@ -161,6 +216,7 @@ export function ExpensesWorkspace({ api, onUnauthorized }: ExpensesWorkspaceProp
       // Already gone is the outcome the user asked for.
       if (!isApiStatus(error, 404)) throw error;
     }
+    deletedIds.current.add(expense.id);
     store.apply({ type: 'remove', id: expense.id });
     setDeleteOpen(false);
     showToast(isProcessed(expense) ? 'deleted' : 'receiptDeleted');
@@ -183,7 +239,7 @@ export function ExpensesWorkspace({ api, onUnauthorized }: ExpensesWorkspaceProp
   return (
     <section aria-labelledby="expenses-title" className="flex flex-col gap-8">
       <div className="animate-rise">
-        <ExpensesHeader onAdd={openCreate} />
+        <ExpensesHeader onAdd={openCreate} onUpload={openUpload} />
       </div>
 
       {/* One staggered entrance for the month block; later state swaps use a quiet reveal instead. */}
@@ -200,7 +256,12 @@ export function ExpensesWorkspace({ api, onUnauthorized }: ExpensesWorkspaceProp
           {loading ? <ExpensesSkeleton monthLabel={monthLabel} /> : null}
           {entry?.status === 'error' ? <ExpensesLoadError monthLabel={monthLabel} onRetry={retry} /> : null}
           {items && items.length === 0 ? (
-            <ExpensesEmptyState monthLabel={monthLabel} isCurrentMonth={month === thisMonth} onAdd={openCreate} />
+            <ExpensesEmptyState
+              monthLabel={monthLabel}
+              isCurrentMonth={month === thisMonth}
+              onAdd={openCreate}
+              onUpload={openUpload}
+            />
           ) : null}
           {items && items.length > 0 ? (
             <div className="flex animate-reveal flex-col gap-8">
@@ -225,6 +286,13 @@ export function ExpensesWorkspace({ api, onUnauthorized }: ExpensesWorkspaceProp
         session={formSession}
         onClose={() => setFormOpen(false)}
         onSave={handleSave}
+        fallbackFocus={fallbackFocus}
+      />
+      <UploadReceiptDialog
+        open={uploadOpen}
+        session={uploadSession}
+        onClose={() => setUploadOpen(false)}
+        onUpload={handleUpload}
         fallbackFocus={fallbackFocus}
       />
       <DeleteExpenseDialog
