@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { Logger } from '@aws-lambda-powertools/logger';
 import { getParameter } from '@aws-lambda-powertools/parameters/ssm';
-import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { GetObjectCommand, NoSuchKey, S3Client } from '@aws-sdk/client-s3';
 import type { CreateExpenseInput } from '@receipts-app/contracts';
 import { z } from 'zod';
 import { createClaudeExtractor } from '../receipt-extractor';
@@ -39,6 +39,11 @@ export class UnreadableReceiptError extends Error {
   override name = 'UnreadableReceiptError';
 }
 
+/** The photo was deleted (with its expense) before it was read. Step Functions ignores it. */
+export class ReceiptDeletedError extends Error {
+  override name = 'ReceiptDeletedError';
+}
+
 export async function handler(event: unknown): Promise<ExtractReceiptResult> {
   const { bucket, key } = inputSchema.parse(event);
 
@@ -48,7 +53,12 @@ export async function handler(event: unknown): Promise<ExtractReceiptResult> {
   }
   logger.appendKeys({ receiptId: receipt.receiptId });
 
-  const object = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+  const object = await s3.send(new GetObjectCommand({ Bucket: bucket, Key: key })).catch((error: unknown) => {
+    if (error instanceof NoSuchKey) {
+      throw new ReceiptDeletedError(`The receipt photo no longer exists: ${key}`);
+    }
+    throw error;
+  });
   if (!object.Body) {
     throw new Error('The receipt object has no body');
   }

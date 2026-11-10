@@ -165,7 +165,7 @@ export class ProcessingStack extends Stack {
     markFailed.next(isUnreadable);
 
     const keepError = { error: '{% $states.errorOutput %}' };
-    extract.addCatch(Succeed.jsonata(this, 'IgnoreObject'), { errors: ['NotAReceiptError'] });
+    extract.addCatch(Succeed.jsonata(this, 'IgnoreObject'), { errors: ['NotAReceiptError', 'ReceiptDeletedError'] });
     extract.addCatch(markFailed, { errors: ['States.ALL'], assign: keepError });
     saveExpense.addCatch(Succeed.jsonata(this, 'AlreadyHandled'), { errors: [CONDITION_FAILED] });
     saveExpense.addCatch(markFailed, { errors: ['States.ALL'], assign: keepError });

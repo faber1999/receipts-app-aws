@@ -55,6 +55,7 @@ export class ApiStack extends Stack {
 
     const deleteExpense = createHandler('DeleteExpense', 'expenses/handlers/delete-expense.ts');
     props.table.grantWriteData(deleteExpense);
+    props.receiptsBucket.grantDelete(deleteExpense, 'receipts/*');
 
     const createReceiptUpload = createHandler('CreateReceiptUpload', 'receipts/handlers/create-receipt-upload.ts');
     props.table.grantWriteData(createReceiptUpload);
