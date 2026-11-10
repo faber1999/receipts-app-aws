@@ -9,7 +9,9 @@ import type {
 } from '@receipts-app/contracts';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Toast } from '@/components/ui/toast';
+import { ReceiptPhotoDialog } from '@/features/receipts/components/receipt-photo-dialog';
 import { UploadReceiptDialog } from '@/features/receipts/components/upload-receipt-dialog';
+import type { ReceiptPhotoLoader } from '@/features/receipts/photo-url';
 import type { Dictionary } from '@/i18n/dictionaries';
 import { useI18n } from '@/i18n/i18n-provider';
 import { moneyDisplayFor } from '@/lib/money';
@@ -38,6 +40,8 @@ export interface ExpensesApi {
   remove: (id: string) => Promise<void>;
   /** Uploads a prepared receipt photo; resolves with its PENDING expense once the photo is stored. */
   uploadReceipt: (image: Blob) => Promise<UnprocessedExpense>;
+  /** A short-lived URL for an expense's receipt photo. */
+  receiptPhoto: ReceiptPhotoLoader;
 }
 
 export interface ExpensesWorkspaceProps {
@@ -74,6 +78,9 @@ export function ExpensesWorkspace({ api, onUnauthorized }: ExpensesWorkspaceProp
   const [deleteTarget, setDeleteTarget] = useState<Expense | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploadSession, setUploadSession] = useState(0);
+  const [photoOpen, setPhotoOpen] = useState(false);
+  const [photoTarget, setPhotoTarget] = useState<Expense | null>(null);
+  const [photoSession, setPhotoSession] = useState(0);
   // Bumped per upload so polling restarts its window; deleted ids never count as "moved".
   const [uploadCount, setUploadCount] = useState(0);
   const deletedIds = useRef(new Set<string>());
@@ -140,6 +147,8 @@ export function ExpensesWorkspace({ api, onUnauthorized }: ExpensesWorkspaceProp
     [items],
   );
   const monthLabel = formatMonth(month, intlLocale);
+  // Follow the row while the viewer is open: a receipt read meanwhile gets its merchant in the title.
+  const photoExpense = (photoTarget && items?.find((expense) => expense.id === photoTarget.id)) ?? photoTarget;
 
   function openCreate(): void {
     setFormTarget({ mode: 'create' });
@@ -168,6 +177,12 @@ export function ExpensesWorkspace({ api, onUnauthorized }: ExpensesWorkspaceProp
     setUploadCount((count) => count + 1);
     setUploadOpen(false);
     showToast('receiptUploaded');
+  }
+
+  function openPhoto(expense: Expense): void {
+    setPhotoTarget(expense);
+    setPhotoSession((session) => session + 1);
+    setPhotoOpen(true);
   }
 
   function openDelete(expense: Expense): void {
@@ -274,6 +289,7 @@ export function ExpensesWorkspace({ api, onUnauthorized }: ExpensesWorkspaceProp
                 onHighlightEnd={clearHighlight}
                 onEdit={openEdit}
                 onDelete={openDelete}
+                onViewReceipt={openPhoto}
               />
             </div>
           ) : null}
@@ -293,6 +309,14 @@ export function ExpensesWorkspace({ api, onUnauthorized }: ExpensesWorkspaceProp
         session={uploadSession}
         onClose={() => setUploadOpen(false)}
         onUpload={handleUpload}
+        fallbackFocus={fallbackFocus}
+      />
+      <ReceiptPhotoDialog
+        open={photoOpen}
+        session={photoSession}
+        expense={photoExpense}
+        onClose={() => setPhotoOpen(false)}
+        loadPhoto={api.receiptPhoto}
         fallbackFocus={fallbackFocus}
       />
       <DeleteExpenseDialog

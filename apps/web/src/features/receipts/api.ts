@@ -2,6 +2,8 @@ import {
   type CreateReceiptUploadResponse,
   createReceiptUploadResponseSchema,
   type ReceiptContentType,
+  type ReceiptPhotoResponse,
+  receiptPhotoResponseSchema,
   type UnprocessedExpense,
 } from '@receipts-app/contracts';
 import { apiRequest } from '@/lib/api-client';
@@ -49,4 +51,11 @@ export async function uploadReceipt(image: Blob): Promise<UnprocessedExpense> {
     throw error;
   }
   return expense;
+}
+
+/** GET /expenses/{id}/receipt: a presigned URL to view the photo, valid for a few minutes. 404 when it has none. */
+export async function getReceiptPhoto(expenseId: string): Promise<ReceiptPhotoResponse> {
+  return receiptPhotoResponseSchema.parse(
+    await apiRequest('GET', `/expenses/${encodeURIComponent(expenseId)}/receipt`),
+  );
 }

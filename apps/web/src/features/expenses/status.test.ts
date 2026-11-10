@@ -1,6 +1,6 @@
 import type { Expense } from '@receipts-app/contracts';
 import { describe, expect, it } from 'vitest';
-import { isProcessed } from './status';
+import { hasReceiptPhoto, isProcessed } from './status';
 
 const base = {
   id: '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d',
@@ -26,5 +26,28 @@ describe('isProcessed', () => {
     const failed: Expense = { ...base, status: 'FAILED', imageKey: 'receipts/b.jpg' };
     expect(isProcessed(pending)).toBe(false);
     expect(isProcessed(failed)).toBe(false);
+  });
+});
+
+describe('hasReceiptPhoto', () => {
+  const processed = {
+    ...base,
+    status: 'PROCESSED',
+    merchant: 'Café Aroma',
+    total: 12000,
+    currency: 'COP',
+    category: 'restaurants',
+  } as const;
+
+  it('is true for uploaded receipts in any status', () => {
+    const pending: Expense = { ...base, status: 'PENDING', imageKey: 'receipts/a.jpg' };
+    const read: Expense = { ...processed, imageKey: 'receipts/b.jpg' };
+    expect(hasReceiptPhoto(pending)).toBe(true);
+    expect(hasReceiptPhoto(read)).toBe(true);
+  });
+
+  it('is false for an expense entered by hand', () => {
+    const manual: Expense = processed;
+    expect(hasReceiptPhoto(manual)).toBe(false);
   });
 });

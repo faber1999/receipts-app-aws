@@ -157,3 +157,30 @@ export function ReceiptIcon(props: IconProps) {
     </Icon>
   );
 }
+
+/** Arrow out of a box: the link opens in a new tab. */
+export function ExternalLinkIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M9.25 2.75h4v4M13.25 2.75 7.75 8.25M11.25 9.25v2.5a1.5 1.5 0 0 1-1.5 1.5h-5.5a1.5 1.5 0 0 1-1.5-1.5v-5.5a1.5 1.5 0 0 1 1.5-1.5h2.5" />
+    </Icon>
+  );
+}
+
+export function ZoomInIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="7" cy="7" r="4.25" />
+      <path d="m10.25 10.25 3 3M7 5.25v3.5M5.25 7h3.5" />
+    </Icon>
+  );
+}
+
+export function ZoomOutIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="7" cy="7" r="4.25" />
+      <path d="m10.25 10.25 3 3M5.25 7h3.5" />
+    </Icon>
+  );
+}

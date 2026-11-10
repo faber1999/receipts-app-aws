@@ -4,7 +4,8 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect } from 'react';
 import { useAuth } from '@/features/auth/auth-provider';
 import { createExpense, deleteExpense, listExpenses, updateExpense } from '@/features/expenses/api';
-import { uploadReceipt } from '@/features/receipts/api';
+import { getReceiptPhoto, uploadReceipt } from '@/features/receipts/api';
+import { withPhotoUrlCache } from '@/features/receipts/photo-url';
 import { type ExpensesApi, ExpensesWorkspace } from './expenses-workspace';
 
 const expensesApi: ExpensesApi = {
@@ -13,6 +14,8 @@ const expensesApi: ExpensesApi = {
   update: updateExpense,
   remove: deleteExpense,
   uploadReceipt,
+  // One cache for the session: reopening a receipt reuses its URL while it is still valid.
+  receiptPhoto: withPhotoUrlCache(getReceiptPhoto),
 };
 
 export function ExpensesView() {

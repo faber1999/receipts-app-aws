@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ApiError } from '@/lib/api-client';
-import { getUploadErrorKey, ReceiptStorageError } from './errors';
+import { getPhotoErrorKey, getUploadErrorKey, ReceiptStorageError } from './errors';
 import { ReceiptImageError } from './prepare-image';
 
 // api-client reads the Amplify/API env at import; only ApiError is needed here.
@@ -35,5 +35,21 @@ describe('getUploadErrorKey', () => {
   it('falls back for anything unexpected', () => {
     expect(getUploadErrorKey(new Error('boom'))).toBe('failed');
     expect(getUploadErrorKey('nope')).toBe('failed');
+  });
+});
+
+describe('getPhotoErrorKey', () => {
+  it('reports a missing photo, an expired session and other API failures apart', () => {
+    expect(getPhotoErrorKey(new ApiError(404, 'x'))).toBe('notFound');
+    expect(getPhotoErrorKey(new ApiError(401, 'x'))).toBe('unauthorized');
+    expect(getPhotoErrorKey(new ApiError(500, 'x'))).toBe('failed');
+  });
+
+  it('treats a fetch TypeError as a network failure', () => {
+    expect(getPhotoErrorKey(new TypeError('Failed to fetch'))).toBe('network');
+  });
+
+  it('falls back for anything unexpected, such as a malformed response', () => {
+    expect(getPhotoErrorKey(new Error('invalid'))).toBe('failed');
   });
 });

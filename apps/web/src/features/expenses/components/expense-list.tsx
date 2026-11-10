@@ -1,13 +1,13 @@
 'use client';
 
 import type { Expense, ProcessedExpense, UnprocessedExpense } from '@receipts-app/contracts';
-import { PencilIcon, TrashIcon } from '@/components/icons';
+import { PencilIcon, ReceiptIcon, TrashIcon } from '@/components/icons';
 import { IconButton } from '@/components/ui/icon-button';
 import { useI18n } from '@/i18n/i18n-provider';
 import { cn } from '@/lib/cn';
 import { formatMoney, type MoneyDisplay } from '@/lib/money';
 import { formatLongDate, formatRowDate } from '../format';
-import { isProcessed } from '../status';
+import { hasReceiptPhoto, isProcessed } from '../status';
 import { ReceiptStatus } from './receipt-status';
 
 export const EXPENSE_LIST_TITLE_ID = 'expense-list-title';
@@ -23,6 +23,8 @@ export interface ExpenseListProps {
   /** Only offered on PROCESSED rows: an unprocessed receipt has nothing to edit yet. */
   onEdit: (expense: ProcessedExpense) => void;
   onDelete: (expense: Expense) => void;
+  /** Offered only on rows with a photo (uploaded receipts, whatever their status). */
+  onViewReceipt: (expense: Expense) => void;
 }
 
 /** One list, two layouts: a table from md up, stacked rows below it. */
@@ -34,6 +36,7 @@ export function ExpenseList({
   onHighlightEnd,
   onEdit,
   onDelete,
+  onViewReceipt,
 }: ExpenseListProps) {
   const { t, intlLocale } = useI18n();
   const { list } = t.expenses;
@@ -61,7 +64,8 @@ export function ExpenseList({
             <col />
             <col className="w-40" />
             <col className="w-36" />
-            <col className="w-28" />
+            {/* Fits three 32px actions 8px apart plus the cell padding. */}
+            <col className="w-36" />
           </colgroup>
           <thead>
             <tr className="border-b border-line text-left text-xs text-ink-muted">
@@ -117,7 +121,7 @@ export function ExpenseList({
                   </>
                 )}
                 <td className="py-2 pr-5 pl-3">
-                  <RowActions expense={expense} onEdit={onEdit} onDelete={onDelete} />
+                  <RowActions expense={expense} onEdit={onEdit} onDelete={onDelete} onViewReceipt={onViewReceipt} />
                 </td>
               </tr>
             ))}
@@ -166,7 +170,7 @@ export function ExpenseList({
                   </div>
                 </>
               )}
-              <RowActions expense={expense} onEdit={onEdit} onDelete={onDelete} />
+              <RowActions expense={expense} onEdit={onEdit} onDelete={onDelete} onViewReceipt={onViewReceipt} />
             </li>
           ))}
         </ul>
@@ -196,16 +200,31 @@ interface RowActionsProps {
   expense: Expense;
   onEdit: (expense: ProcessedExpense) => void;
   onDelete: (expense: Expense) => void;
+  onViewReceipt: (expense: Expense) => void;
 }
 
-/** Edit only for PROCESSED; delete for every status. Right-aligned, so delete keeps its place either way. */
-function RowActions({ expense, onEdit, onDelete }: RowActionsProps) {
+/**
+ * View receipt only when there is a photo; edit only for PROCESSED; delete for every status.
+ * Right-aligned, so delete and edit keep their places whichever actions a row has.
+ */
+function RowActions({ expense, onEdit, onDelete, onViewReceipt }: RowActionsProps) {
   const { t, intlLocale } = useI18n();
   const { list } = t.expenses;
   const processed = isProcessed(expense) ? expense : null;
+  const date = formatLongDate(expense.date, intlLocale);
 
   return (
     <div className="flex items-center justify-end gap-2">
+      {hasReceiptPhoto(expense) ? (
+        <IconButton
+          label={processed ? list.viewReceiptLabel(processed.merchant) : list.viewUploadedReceiptLabel(date)}
+          tooltip={list.viewReceipt}
+          tooltipSide="top"
+          onClick={() => onViewReceipt(expense)}
+        >
+          <ReceiptIcon />
+        </IconButton>
+      ) : null}
       {processed ? (
         <IconButton
           label={list.editLabel(processed.merchant)}
@@ -217,11 +236,7 @@ function RowActions({ expense, onEdit, onDelete }: RowActionsProps) {
         </IconButton>
       ) : null}
       <IconButton
-        label={
-          processed
-            ? list.deleteLabel(processed.merchant)
-            : list.receiptDeleteLabel(formatLongDate(expense.date, intlLocale))
-        }
+        label={processed ? list.deleteLabel(processed.merchant) : list.receiptDeleteLabel(date)}
         tooltip={list.delete}
         tooltipSide="top"
         tooltipAlign="end"
