@@ -36,7 +36,7 @@ export function createStacks(app: App, env: Environment): ReceiptsStacks {
     table: data.table,
     receiptsBucket: data.receiptsBucket,
   });
-  const web = new WebStack(app, 'WebStack', { env, apiUrl: api.apiUrl });
+  const web = new WebStack(app, 'WebStack', { env, apiUrl: api.apiUrl, receiptsBucket: data.receiptsBucket });
   const ci = new CiStack(app, 'CiStack', { env });
 
   return { auth, data, api, processing, web, ci };

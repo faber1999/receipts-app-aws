@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { unprocessedExpenseSchema } from '../expenses/expense';
 
-/** Formats both Textract and Bedrock (Nova) can read. */
+/** Photo formats the app accepts and the AI model can read. */
 export const RECEIPT_CONTENT_TYPES = ['image/jpeg', 'image/png'] as const;
 
 /** Upper bound for a receipt photo; enforced by the S3 POST policy, not just the client. */

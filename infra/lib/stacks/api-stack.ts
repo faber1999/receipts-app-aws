@@ -61,6 +61,10 @@ export class ApiStack extends Stack {
     props.table.grantWriteData(createReceiptUpload);
     props.receiptsBucket.grantPut(createReceiptUpload, 'receipts/*');
 
+    const getReceiptPhoto = createHandler('GetReceiptPhoto', 'receipts/handlers/get-receipt-photo.ts');
+    props.table.grant(getReceiptPhoto, 'dynamodb:GetItem');
+    props.receiptsBucket.grantRead(getReceiptPhoto, 'receipts/*');
+
     const authorizer = new HttpUserPoolAuthorizer('CognitoAuthorizer', props.userPool, {
       userPoolClients: [props.userPoolClient],
     });
@@ -82,7 +86,6 @@ export class ApiStack extends Stack {
       methods: [HttpMethod.GET],
       integration: new HttpLambdaIntegration('ListExpensesIntegration', listExpenses),
     });
-
     api.addRoutes({
       path: '/expenses',
       methods: [HttpMethod.POST],
@@ -99,6 +102,12 @@ export class ApiStack extends Stack {
       path: '/expenses/{id}',
       methods: [HttpMethod.DELETE],
       integration: new HttpLambdaIntegration('DeleteExpenseIntegration', deleteExpense),
+    });
+
+    api.addRoutes({
+      path: '/expenses/{id}/receipt',
+      methods: [HttpMethod.GET],
+      integration: new HttpLambdaIntegration('GetReceiptPhotoIntegration', getReceiptPhoto),
     });
 
     api.addRoutes({

@@ -14,7 +14,7 @@ import {
 } from 'aws-cdk-lib/aws-cloudfront';
 import { S3BucketOrigin } from 'aws-cdk-lib/aws-cloudfront-origins';
 import { LogGroup, RetentionDays } from 'aws-cdk-lib/aws-logs';
-import { BlockPublicAccess, Bucket, BucketEncryption } from 'aws-cdk-lib/aws-s3';
+import { BlockPublicAccess, Bucket, BucketEncryption, type IBucket } from 'aws-cdk-lib/aws-s3';
 import { BucketDeployment, Source } from 'aws-cdk-lib/aws-s3-deployment';
 import type { Construct } from 'constructs';
 
@@ -23,6 +23,7 @@ const WEB_BUILD_DIR = join(import.meta.dirname, '../../../apps/web/out');
 export interface WebStackProps extends StackProps {
   /** Origins the site may call with fetch: the API and Cognito. */
   apiUrl: string;
+  receiptsBucket: IBucket;
 }
 
 export class WebStack extends Stack {
@@ -43,15 +44,17 @@ export class WebStack extends Stack {
       comment: 'Maps clean URLs to the static export .html files',
     });
 
+    const receiptsOrigin = `https://${props.receiptsBucket.bucketRegionalDomainName}`;
+
     const contentSecurityPolicy = [
       "default-src 'self'",
       // The Next.js static export inlines its bootstrap scripts, so inline scripts must be allowed.
       "script-src 'self' 'unsafe-inline'",
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: blob:",
+      `img-src 'self' data: blob: ${receiptsOrigin}`,
       "font-src 'self'",
       // The only places the page may send data to: our API and Cognito.
-      `connect-src 'self' ${props.apiUrl} https://cognito-idp.${this.region}.amazonaws.com`,
+      `connect-src 'self' ${props.apiUrl} https://cognito-idp.${this.region}.amazonaws.com ${receiptsOrigin}`,
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",
