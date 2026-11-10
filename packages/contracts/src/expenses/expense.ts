@@ -41,7 +41,21 @@ export const unprocessedExpenseSchema = expenseBaseSchema.extend({
   imageKey: z.string(),
 });
 
-export const expenseSchema = z.discriminatedUnion('status', [processedExpenseSchema, unprocessedExpenseSchema]);
+/** A receipt the AI has read: whatever it could read, waiting for the person to confirm it or fill in the gaps. */
+export const reviewExpenseSchema = expenseBaseSchema.extend({
+  status: z.literal('REVIEW'),
+  imageKey: z.string(),
+  merchant: processedExpenseSchema.shape.merchant.optional(),
+  total: processedExpenseSchema.shape.total.optional(),
+  currency: processedExpenseSchema.shape.currency.optional(),
+  category: processedExpenseSchema.shape.category.optional(),
+});
+
+export const expenseSchema = z.discriminatedUnion('status', [
+  processedExpenseSchema,
+  reviewExpenseSchema,
+  unprocessedExpenseSchema,
+]);
 
 /** Body of POST /expenses (manual entry). The API fills id, status and createdAt. */
 export const createExpenseInputSchema = processedExpenseSchema.pick({
@@ -75,3 +89,4 @@ export type CreateExpenseInput = z.infer<typeof createExpenseInputSchema>;
 export type UpdateExpenseInput = z.infer<typeof updateExpenseInputSchema>;
 export type ListExpensesResponse = z.infer<typeof listExpensesResponseSchema>;
 export type ListExpensesQuery = z.infer<typeof listExpensesQuerySchema>;
+export type ReviewExpense = z.infer<typeof reviewExpenseSchema>;

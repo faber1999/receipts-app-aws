@@ -66,6 +66,24 @@ export class ProcessingStack extends Stack {
       parameterName: ANTHROPIC_API_KEY_PARAMETER,
     }).grantRead(extractReceipt);
 
+    // --- Save Lambda: stores what was read and asks for review ------------------------------
+    const saveExtractionFunction = new NodejsFunction(this, 'SaveExtractionFunction', {
+      entry: join(API_SRC_DIR, 'receipts/handlers/save-extraction.ts'),
+      runtime: Runtime.NODEJS_24_X,
+      architecture: Architecture.ARM_64,
+      memorySize: 256,
+      timeout: Duration.seconds(10),
+      environment: { TABLE_NAME: props.table.tableName },
+      bundling: { minify: true },
+      logGroup: new LogGroup(this, 'SaveExtractionLogs', {
+        retention: RetentionDays.ONE_WEEK,
+        removalPolicy: RemovalPolicy.DESTROY,
+      }),
+    });
+
+    // Only UpdateItem: it never reads, scans or deletes.
+    props.table.grant(saveExtractionFunction, 'dynamodb:UpdateItem');
+
     // --- Dead-letter queue: receipts that failed for an unexpected reason -----------------
     const deadLetterQueue = new Queue(this, 'ProcessingDeadLetterQueue', {
       encryption: QueueEncryption.SQS_MANAGED,
@@ -98,32 +116,15 @@ export class ProcessingStack extends Stack {
       assign: { expense: '{% $states.result.Payload.expense %}' },
     });
 
-    // 3. Save the data. Only a PENDING item is updated: a duplicate event or a deleted expense is a no-op.
-    const saveExpense = DynamoUpdateItem.jsonata(this, 'SaveExpense', {
-      table: props.table,
-      key: receiptKey,
-      updateExpression:
-        'SET #status = :processed, #merchant = :merchant, #total = :total, #currency = :currency, #date = :date, #category = :category, #GSI1SK = :gsi1sk',
-      conditionExpression: '#status = :pending',
-      expressionAttributeNames: {
-        '#status': 'status',
-        '#merchant': 'merchant',
-        '#total': 'total',
-        '#currency': 'currency',
-        '#date': 'date',
-        '#category': 'category',
-        '#GSI1SK': 'GSI1SK',
-      },
-      expressionAttributeValues: {
-        ':processed': DynamoAttributeValue.fromString('PROCESSED'),
-        ':pending': DynamoAttributeValue.fromString('PENDING'),
-        ':merchant': DynamoAttributeValue.fromString('{% $expense.merchant %}'),
-        ':total': DynamoAttributeValue.numberFromString('{% $string($expense.total) %}'),
-        ':currency': DynamoAttributeValue.fromString('{% $expense.currency %}'),
-        ':date': DynamoAttributeValue.fromString('{% $expense.date %}'),
-        ':category': DynamoAttributeValue.fromString('{% $expense.category %}'),
-        ':gsi1sk': DynamoAttributeValue.fromString('{% "DATE#" & $expense.date %}'),
-      },
+    // 3. Save what was read and ask the person to review it.
+    //    The Lambda only updates a PENDING item: a duplicate event or a deleted expense is a no-op.
+    const saveExpense = LambdaInvoke.jsonata(this, 'SaveExtraction', {
+      lambdaFunction: saveExtractionFunction,
+      payload: TaskInput.fromObject({
+        userId: '{% $userId %}',
+        receiptId: '{% $receiptId %}',
+        expense: '{% $expense %}',
+      }),
     });
 
     // Failure path: mark the receipt FAILED, then decide whether it needs attention.
@@ -167,7 +168,6 @@ export class ProcessingStack extends Stack {
     const keepError = { error: '{% $states.errorOutput %}' };
     extract.addCatch(Succeed.jsonata(this, 'IgnoreObject'), { errors: ['NotAReceiptError', 'ReceiptDeletedError'] });
     extract.addCatch(markFailed, { errors: ['States.ALL'], assign: keepError });
-    saveExpense.addCatch(Succeed.jsonata(this, 'AlreadyHandled'), { errors: [CONDITION_FAILED] });
     saveExpense.addCatch(markFailed, { errors: ['States.ALL'], assign: keepError });
 
     const stateMachine = new StateMachine(this, 'ReceiptProcessing', {
