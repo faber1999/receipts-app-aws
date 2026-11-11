@@ -53,6 +53,9 @@ export class ApiStack extends Stack {
     const updateExpense = createHandler('UpdateExpense', 'expenses/handlers/update-expense.ts');
     props.table.grantWriteData(updateExpense);
 
+    const confirmExpense = createHandler('ConfirmExpense', 'expenses/handlers/confirm-expense.ts');
+    props.table.grant(confirmExpense, 'dynamodb:UpdateItem');
+
     const deleteExpense = createHandler('DeleteExpense', 'expenses/handlers/delete-expense.ts');
     props.table.grantWriteData(deleteExpense);
     props.receiptsBucket.grantDelete(deleteExpense, 'receipts/*');
@@ -104,6 +107,11 @@ export class ApiStack extends Stack {
       integration: new HttpLambdaIntegration('DeleteExpenseIntegration', deleteExpense),
     });
 
+    api.addRoutes({
+      path: '/expenses/{id}/confirm',
+      methods: [HttpMethod.POST],
+      integration: new HttpLambdaIntegration('ConfirmExpenseIntegration', confirmExpense),
+    });
     api.addRoutes({
       path: '/expenses/{id}/receipt',
       methods: [HttpMethod.GET],

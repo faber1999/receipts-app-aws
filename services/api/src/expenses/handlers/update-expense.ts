@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { getUserId } from '../../shared/auth';
 import { db } from '../../shared/db';
 import { env } from '../../shared/env';
-import { getPathId, json, notFound, parseJsonBody } from '../../shared/http';
+import { conflict, getPathId, json, notFound, parseJsonBody } from '../../shared/http';
 import { expenseKey, fromItem, toUpdateExpression } from '../expense-repository';
 
 const logger = new Logger({ serviceName: 'expenses-api' });
@@ -24,14 +24,20 @@ export async function handler(event: APIGatewayProxyEventV2WithJWTAuthorizer): P
     return json(400, { message: 'Invalid update', errors: z.flattenError(parsed.error) });
   }
 
+  const update = toUpdateExpression(parsed.data);
   try {
     const result = await db.send(
       new UpdateCommand({
         TableName: env.TABLE_NAME,
         Key: expenseKey(userId, expenseId),
-        ...toUpdateExpression(parsed.data),
-        ConditionExpression: 'attribute_exists(PK)',
+        ...update,
+        // Only confirmed expenses are edited here; REVIEW and FAILED go through POST /expenses/{id}/confirm.
+        ConditionExpression: '#status = :processed',
+        ExpressionAttributeNames: { ...update.ExpressionAttributeNames, '#status': 'status' },
+        ExpressionAttributeValues: { ...update.ExpressionAttributeValues, ':processed': 'PROCESSED' },
         ReturnValues: 'ALL_NEW',
+        // On a failed condition DynamoDB returns the current item, so "not found" and "wrong status" can be told apart.
+        ReturnValuesOnConditionCheckFailure: 'ALL_OLD',
       }),
     );
 
@@ -39,7 +45,7 @@ export async function handler(event: APIGatewayProxyEventV2WithJWTAuthorizer): P
     return json(200, fromItem(result.Attributes ?? {}));
   } catch (error: unknown) {
     if (error instanceof ConditionalCheckFailedException) {
-      return notFound();
+      return error.Item ? conflict('Only confirmed expenses can be edited') : notFound();
     }
     throw error;
   }

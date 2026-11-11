@@ -28,3 +28,5 @@ export function getPathId(pathParameters: Record<string, string | undefined> | u
 }
 
 export const notFound = (): APIGatewayProxyResultV2 => json(404, { message: 'Expense not found' });
+
+export const conflict = (message: string): APIGatewayProxyResultV2 => json(409, { message });
