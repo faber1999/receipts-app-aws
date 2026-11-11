@@ -1,4 +1,4 @@
-import type { Expense, ProcessedExpense, UnprocessedExpense } from '@receipts-app/contracts';
+import type { Expense, ProcessedExpense, ReviewExpense, UnprocessedExpense } from '@receipts-app/contracts';
 import { describe, expect, it } from 'vitest';
 import {
   applyExpenseChange,
@@ -11,6 +11,18 @@ import {
 } from './month';
 
 let seq = 0;
+
+function inReview(overrides: Partial<ReviewExpense> = {}): ReviewExpense {
+  seq += 1;
+  return {
+    id: `00000000-0000-4000-8000-${String(seq).padStart(12, '0')}`,
+    status: 'REVIEW',
+    imageKey: `receipts/${seq}.jpg`,
+    date: '2026-11-03',
+    createdAt: '2026-11-03T15:00:00.000Z',
+    ...overrides,
+  };
+}
 
 function processed(overrides: Partial<ProcessedExpense> = {}): ProcessedExpense {
   seq += 1;
@@ -160,7 +172,22 @@ describe('summarizeMonth', () => {
     expect(summary.currencies[0]).toMatchObject({ total: 10000, count: 1 });
   });
 
+  it('counts receipts waiting for review but leaves even fully read ones out of the totals', () => {
+    const summary = summarizeMonth([
+      processed({ total: 10000, category: 'groceries' }),
+      inReview({ merchant: 'Tienda D1', total: 99000, currency: 'COP', category: 'groceries' }),
+      inReview({ total: 5, currency: 'USD' }),
+      unprocessed('FAILED'),
+    ]);
+    expect(summary.reviewCount).toBe(2);
+    expect(summary.failedCount).toBe(1);
+    expect(summary.pendingCount).toBe(0);
+    expect(summary.currencies).toEqual([
+      { currency: 'COP', total: 10000, count: 1, categories: [{ category: 'groceries', total: 10000, share: 1 }] },
+    ]);
+  });
+
   it('is empty for a month without expenses', () => {
-    expect(summarizeMonth([])).toEqual({ currencies: [], pendingCount: 0, failedCount: 0 });
+    expect(summarizeMonth([])).toEqual({ currencies: [], pendingCount: 0, reviewCount: 0, failedCount: 0 });
   });
 });

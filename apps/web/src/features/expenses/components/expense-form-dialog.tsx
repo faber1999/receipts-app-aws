@@ -1,22 +1,15 @@
 'use client';
 
-import { type CreateExpenseInput, EXPENSE_CATEGORIES, type ProcessedExpense } from '@receipts-app/contracts';
+import type { CreateExpenseInput, ProcessedExpense } from '@receipts-app/contracts';
 import { type SubmitEvent, useId, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogBody, DialogFooter } from '@/components/ui/dialog';
-import { FieldError, TextField } from '@/components/ui/input';
-import { MoneyField } from '@/components/ui/money-input';
-import { SelectField } from '@/components/ui/select';
+import { FieldError } from '@/components/ui/input';
 import { useI18n } from '@/i18n/i18n-provider';
 import { type ExpenseErrorKey, getExpenseErrorKey } from '../errors';
 import { todayIsoDate } from '../month';
-import {
-  DEFAULT_CURRENCY,
-  EXPENSE_FIELDS,
-  type ExpenseFieldErrors,
-  FORM_CURRENCIES,
-  parseExpenseForm,
-} from '../schemas';
+import { DEFAULT_CURRENCY, type ExpenseFieldErrors, parseExpenseForm } from '../schemas';
+import { ExpenseFields, type ExpenseFormValues, focusFirstInvalid } from './expense-fields';
 
 /** Only a PROCESSED expense has the fields the form edits; an unprocessed receipt can only be deleted. */
 export type ExpenseFormTarget = { mode: 'create' } | { mode: 'edit'; expense: ProcessedExpense };
@@ -74,15 +67,14 @@ function ExpenseForm({ expense, saving, setSaving, onCancel, onSave }: ExpenseFo
   const id = useId();
   const [fieldErrors, setFieldErrors] = useState<ExpenseFieldErrors>({});
   const [formError, setFormError] = useState<ExpenseErrorKey | null>(null);
-  // Mirrors the (still uncontrolled) currency select so the total can format for it.
-  const [currency, setCurrency] = useState(expense?.currency ?? DEFAULT_CURRENCY);
   const { form } = t.expenses;
-
-  // Keep a currency the form does not offer (e.g. one read from a receipt) instead of silently changing it.
-  const currencies: string[] =
-    expense && !(FORM_CURRENCIES as readonly string[]).includes(expense.currency)
-      ? [...FORM_CURRENCIES, expense.currency]
-      : [...FORM_CURRENCIES];
+  const defaults: ExpenseFormValues = expense ?? {
+    merchant: '',
+    total: null,
+    currency: DEFAULT_CURRENCY,
+    date: todayIsoDate(),
+    category: 'groceries',
+  };
 
   async function handleSubmit(event: SubmitEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -92,11 +84,7 @@ function ExpenseForm({ expense, saving, setSaving, onCancel, onSave }: ExpenseFo
     const parsed = parseExpenseForm(new FormData(formElement));
     if (!parsed.success) {
       setFieldErrors(parsed.errors);
-      // Move focus to the first invalid field so keyboard and screen reader users land on the problem.
-      const first = EXPENSE_FIELDS.find((field) => parsed.errors[field]);
-      // By id, not name: the total's `name` sits on a hidden input that carries the plain number.
-      const control = first ? formElement.ownerDocument.getElementById(fieldId(first)) : null;
-      if (control instanceof HTMLElement) control.focus();
+      focusFirstInvalid(formElement, id, parsed.errors);
       return;
     }
 
@@ -111,76 +99,12 @@ function ExpenseForm({ expense, saving, setSaving, onCancel, onSave }: ExpenseFo
     }
   }
 
-  const fieldId = (name: string) => `${id}-${name}`;
-  const errorText = (field: keyof ExpenseFieldErrors) => {
-    const key = fieldErrors[field];
-    return key ? t.validation[key] : undefined;
-  };
-
   return (
     <form onSubmit={handleSubmit} noValidate>
       <DialogBody>
         {/* A disabled fieldset locks every control while the request is in flight. */}
         <fieldset disabled={saving} className="flex min-w-0 flex-col gap-4">
-          <TextField
-            id={fieldId('merchant')}
-            name="merchant"
-            label={form.merchantLabel}
-            placeholder={form.merchantPlaceholder}
-            defaultValue={expense?.merchant ?? ''}
-            autoComplete="off"
-            maxLength={120}
-            error={errorText('merchant')}
-          />
-          <div className="grid grid-cols-[minmax(0,1fr)_7rem] gap-3">
-            <MoneyField
-              id={fieldId('total')}
-              name="total"
-              currency={currency}
-              label={form.totalLabel}
-              currencyDescription={form.totalCurrency}
-              defaultValue={expense?.total ?? null}
-              error={errorText('total')}
-            />
-            <SelectField
-              id={fieldId('currency')}
-              name="currency"
-              label={form.currencyLabel}
-              defaultValue={expense?.currency ?? DEFAULT_CURRENCY}
-              onChange={(event) => setCurrency(event.target.value)}
-              error={errorText('currency')}
-            >
-              {currencies.map((currency) => (
-                <option key={currency} value={currency}>
-                  {currency}
-                </option>
-              ))}
-            </SelectField>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2 sm:gap-3">
-            <TextField
-              id={fieldId('date')}
-              name="date"
-              type="date"
-              label={form.dateLabel}
-              defaultValue={expense?.date ?? todayIsoDate()}
-              inputClassName="tabular-nums"
-              error={errorText('date')}
-            />
-            <SelectField
-              id={fieldId('category')}
-              name="category"
-              label={form.categoryLabel}
-              defaultValue={expense?.category ?? 'groceries'}
-              error={errorText('category')}
-            >
-              {EXPENSE_CATEGORIES.map((category) => (
-                <option key={category} value={category}>
-                  {t.categories[category]}
-                </option>
-              ))}
-            </SelectField>
-          </div>
+          <ExpenseFields idPrefix={id} defaults={defaults} errors={fieldErrors} />
         </fieldset>
         {formError ? (
           <FieldError role="alert" className="mt-4">

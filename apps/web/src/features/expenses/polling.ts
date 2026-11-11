@@ -16,8 +16,12 @@ export function shouldKeepPolling(items: readonly Expense[], startedAt: number, 
 }
 
 export interface ReceiptSettlement {
-  /** Were PENDING, now PROCESSED or FAILED in the same month. */
+  /** Were PENDING and settled in the same month (REVIEW or FAILED; PROCESSED only if confirmed elsewhere). */
   read: string[];
+  /** The subset of `read` the AI finished reading: now waiting for the person to review them. */
+  toReview: string[];
+  /** The subset of `read` the AI could not read: the person can complete them from the photo. */
+  failed: string[];
   /** Were PENDING and are gone: the AI dated them in another month (or they were deleted elsewhere). */
   moved: string[];
 }
@@ -26,13 +30,21 @@ export interface ReceiptSettlement {
 export function settleReceipts(before: readonly Expense[], after: readonly Expense[]): ReceiptSettlement {
   const now = new Map(after.map((expense) => [expense.id, expense]));
   const read: string[] = [];
+  const toReview: string[] = [];
+  const failed: string[] = [];
   const moved: string[] = [];
 
   for (const expense of before) {
     if (expense.status !== 'PENDING') continue;
     const current = now.get(expense.id);
-    if (!current) moved.push(expense.id);
-    else if (current.status !== 'PENDING') read.push(expense.id);
+    if (!current) {
+      moved.push(expense.id);
+      continue;
+    }
+    if (current.status === 'PENDING') continue;
+    read.push(expense.id);
+    if (current.status === 'REVIEW') toReview.push(expense.id);
+    else if (current.status === 'FAILED') failed.push(expense.id);
   }
-  return { read, moved };
+  return { read, toReview, failed, moved };
 }

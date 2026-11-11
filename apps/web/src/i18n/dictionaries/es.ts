@@ -115,6 +115,11 @@ export const es: Dictionary = {
       empty: 'No hay nada registrado este mes.',
       mixedCurrencies: 'Este mes tiene gastos en más de una moneda, así que cada una se suma por separado.',
       awaitingTotals: 'Tu total aparecerá aquí cuando se lean tus recibos.',
+      awaitingReview: 'Tu total aparecerá aquí cuando confirmes tus recibos.',
+      reviewNote: (count: number) =>
+        count === 1 ? '1 recibo por revisar, aún no se cuenta' : `${count} recibos por revisar, aún no se cuentan`,
+      reviewAction: 'Revisar',
+      reviewActionLabel: (count: number) => (count === 1 ? 'Revisar el recibo' : 'Revisar el primer recibo'),
       pendingNote: (count: number) =>
         count === 1 ? '1 recibo procesándose, aún no se cuenta' : `${count} recibos procesándose, aún no se cuentan`,
       failedNote: (count: number) =>
@@ -140,8 +145,16 @@ export const es: Dictionary = {
       deleteLabel: (merchant: string) => `Eliminar ${merchant}`,
       pendingTitle: 'Procesando recibo…',
       failedTitle: 'No pudimos leer este recibo',
-      failedHint: 'Elimínalo y agrega el gasto manualmente.',
-      noTotal: { PENDING: 'Aún sin total', FAILED: 'Sin total' },
+      reviewTitle: 'Por revisar',
+      failedHint: 'Complétalo a partir de la foto.',
+      merchantNotRead: 'Comercio sin leer',
+      categoryNotRead: 'Categoría sin leer',
+      noTotal: { PENDING: 'Aún sin total', REVIEW: 'Total sin leer', FAILED: 'Sin total' },
+      review: 'Revisar',
+      complete: 'Completar',
+      reviewLabel: (merchant: string) => `Revisar el recibo de ${merchant}`,
+      reviewUploadedLabel: (date: string) => `Revisar el recibo subido el ${date}`,
+      completeLabel: (date: string) => `Completar el recibo subido el ${date}`,
       receiptDeleteLabel: (date: string) => `Eliminar el recibo subido el ${date}`,
       viewReceipt: 'Ver recibo',
       viewReceiptLabel: (merchant: string) => `Ver el recibo de ${merchant}`,
@@ -177,6 +190,25 @@ export const es: Dictionary = {
       submitEdit: 'Guardar cambios',
       saving: 'Guardando…',
     },
+    review: {
+      reviewTitle: 'Revisar recibo',
+      completeTitle: 'Completar gasto',
+      reviewDescription: (unread: number) =>
+        unread === 0
+          ? 'Compara lo que leímos con la foto y confírmalo.'
+          : `No pudimos leer ${unread === 1 ? '1 dato' : `${unread} datos`}. ${unread === 1 ? 'Complétalo' : 'Complétalos'} a partir de la foto y confirma.`,
+      completeDescription: 'No pudimos leer este recibo. Escribe los datos a partir de la foto.',
+      photoLabel: 'Foto del recibo',
+      notRead: 'Sin leer, complétalo',
+      checkDate: 'Revísala: es el día en que lo subiste',
+      chooseCurrency: 'Elige',
+      chooseCategory: 'Elige una categoría',
+      cancel: 'Cancelar',
+      close: 'Cerrar',
+      submitReview: 'Confirmar gasto',
+      submitComplete: 'Guardar gasto',
+      saving: 'Guardando…',
+    },
     deleteDialog: {
       title: (merchant: string) => `¿Eliminar ${merchant}?`,
       description: (total: string, date: string) =>
@@ -195,7 +227,14 @@ export const es: Dictionary = {
       deleted: 'Gasto eliminado',
       receiptDeleted: 'Recibo eliminado',
       receiptUploaded: 'Recibo subido. Lo estamos leyendo.',
-      receiptFiled: 'Recibo leído. Quedó guardado en la fecha del recibo, en otro mes.',
+      receiptFiled: 'Leímos tu recibo. Quedó en la fecha del recibo, en otro mes. Revísalo allá.',
+      receiptToReview: 'Leímos tu recibo. Revísalo para sumarlo.',
+      receiptFailed: 'No pudimos leer tu recibo. Puedes completarlo a partir de la foto.',
+      confirmed: 'Gasto confirmado y sumado',
+    },
+    toastActions: {
+      review: 'Revisar',
+      complete: 'Completar',
     },
     apiErrors: {
       invalid: 'Algunos datos no fueron aceptados. Revísalos e inténtalo de nuevo.',
@@ -203,6 +242,7 @@ export const es: Dictionary = {
       notFound: 'Este gasto ya no existe. Es posible que se haya eliminado.',
       saveFailed: 'No se pudo guardar el gasto. Revisa tu conexión e inténtalo de nuevo.',
       deleteFailed: 'No se pudo eliminar el gasto. Revisa tu conexión e inténtalo de nuevo.',
+      confirmConflict: 'Este recibo cambió en otro lugar, así que no se guardó. Ya actualizamos la lista.',
     },
   },
   receipts: {

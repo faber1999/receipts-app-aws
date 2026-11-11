@@ -30,7 +30,7 @@ From the repository root, prefix them with `pnpm --filter @receipts-app/web`.
 |---|---|---|
 | `/` | Landing | Visitors only; signed-in users are redirected to `/expenses` |
 | `/sign-up`, `/confirm-sign-up`, `/sign-in`, `/forgot-password` | Auth flows (`app/(auth)/` route group) | Visitors only |
-| `/expenses` | Monthly expenses, category totals, and create / edit / delete | Signed-in users |
+| `/expenses` | Monthly expenses, category totals, create / edit / delete, and review of what the AI read from each receipt | Signed-in users |
 
 These guards are a UX convenience only. The real protection is the API rejecting requests without a valid Cognito JWT.
 

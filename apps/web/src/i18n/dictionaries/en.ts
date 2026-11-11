@@ -112,6 +112,11 @@ export const en = {
       empty: 'Nothing recorded this month.',
       mixedCurrencies: 'This month has expenses in more than one currency, so each one is totaled on its own.',
       awaitingTotals: 'Your total will show here once your receipts are read.',
+      awaitingReview: 'Your total will show here once you confirm your receipts.',
+      reviewNote: (count: number) =>
+        count === 1 ? '1 receipt to review, not counted yet' : `${count} receipts to review, not counted yet`,
+      reviewAction: 'Review',
+      reviewActionLabel: (count: number): string => (count === 1 ? 'Review the receipt' : 'Review the first receipt'),
       pendingNote: (count: number) =>
         count === 1 ? '1 receipt processing, not counted yet' : `${count} receipts processing, not counted yet`,
       failedNote: (count: number) =>
@@ -137,8 +142,16 @@ export const en = {
       deleteLabel: (merchant: string) => `Delete ${merchant}`,
       pendingTitle: 'Processing receipt…',
       failedTitle: 'Couldn’t read this receipt',
-      failedHint: 'Delete it and add the expense manually.',
-      noTotal: { PENDING: 'No total yet', FAILED: 'No total' },
+      reviewTitle: 'To review',
+      failedHint: 'Complete it from the photo.',
+      merchantNotRead: 'Merchant not read',
+      categoryNotRead: 'Category not read',
+      noTotal: { PENDING: 'No total yet', REVIEW: 'Total not read', FAILED: 'No total' },
+      review: 'Review',
+      complete: 'Complete',
+      reviewLabel: (merchant: string) => `Review the receipt from ${merchant}`,
+      reviewUploadedLabel: (date: string) => `Review the receipt uploaded ${date}`,
+      completeLabel: (date: string) => `Complete the receipt uploaded ${date}`,
       receiptDeleteLabel: (date: string) => `Delete the receipt uploaded ${date}`,
       viewReceipt: 'View receipt',
       viewReceiptLabel: (merchant: string) => `View the receipt from ${merchant}`,
@@ -173,6 +186,25 @@ export const en = {
       submitEdit: 'Save changes',
       saving: 'Saving…',
     },
+    review: {
+      reviewTitle: 'Review receipt',
+      completeTitle: 'Complete expense',
+      reviewDescription: (unread: number) =>
+        unread === 0
+          ? 'Check what we read against the photo, then confirm it.'
+          : `We couldn’t read ${unread === 1 ? '1 detail' : `${unread} details`}. Fill ${unread === 1 ? 'it' : 'them'} in from the photo, then confirm.`,
+      completeDescription: 'We couldn’t read this receipt. Enter the details from the photo.',
+      photoLabel: 'Receipt photo',
+      notRead: 'Not read, please fill in',
+      checkDate: 'Please check: this is the day you uploaded it',
+      chooseCurrency: 'Choose',
+      chooseCategory: 'Choose a category',
+      cancel: 'Cancel',
+      close: 'Close',
+      submitReview: 'Confirm expense',
+      submitComplete: 'Save expense',
+      saving: 'Saving…',
+    },
     deleteDialog: {
       title: (merchant: string) => `Delete ${merchant}?`,
       description: (total: string, date: string) =>
@@ -190,7 +222,14 @@ export const en = {
       deleted: 'Expense deleted',
       receiptDeleted: 'Receipt deleted',
       receiptUploaded: 'Receipt uploaded. We’re reading it now.',
-      receiptFiled: 'Receipt read. It’s filed under its receipt date, in another month.',
+      receiptFiled: 'We read your receipt. It’s filed under its receipt date, in another month. Review it there.',
+      receiptToReview: 'We read your receipt. Review it to count it.',
+      receiptFailed: 'We couldn’t read your receipt. You can complete it from the photo.',
+      confirmed: 'Expense confirmed and counted',
+    },
+    toastActions: {
+      review: 'Review',
+      complete: 'Complete',
     },
     apiErrors: {
       invalid: 'Some details weren’t accepted. Check them and try again.',
@@ -198,6 +237,7 @@ export const en = {
       notFound: 'This expense no longer exists. It may have been deleted.',
       saveFailed: 'Couldn’t save the expense. Check your connection and try again.',
       deleteFailed: 'Couldn’t delete the expense. Check your connection and try again.',
+      confirmConflict: 'This receipt changed somewhere else, so it wasn’t saved. We’ve refreshed the list.',
     },
   },
   receipts: {

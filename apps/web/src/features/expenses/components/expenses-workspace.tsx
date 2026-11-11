@@ -8,7 +8,7 @@ import type {
   UpdateExpenseInput,
 } from '@receipts-app/contracts';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
-import { Toast } from '@/components/ui/toast';
+import { Toast, type ToastAction } from '@/components/ui/toast';
 import { ReceiptPhotoDialog } from '@/features/receipts/components/receipt-photo-dialog';
 import { UploadReceiptDialog } from '@/features/receipts/components/upload-receipt-dialog';
 import type { ReceiptPhotoLoader } from '@/features/receipts/photo-url';
@@ -20,23 +20,28 @@ import { formatMonth } from '../format';
 import { currentMonthKey, type MonthKey, monthKeyOf, shiftMonth, summarizeMonth } from '../month';
 import { MonthExpensesStore } from '../month-store';
 import { hasPendingReceipt, settleReceipts } from '../polling';
+import { firstToReview } from '../review';
 import { changedFields } from '../schemas';
-import { isProcessed } from '../status';
+import { type CompletableExpense, isCompletable, isProcessed } from '../status';
 import { useMonthPolling } from '../use-month-polling';
 import { DeleteExpenseDialog } from './delete-expense-dialog';
 import { ExpenseFormDialog, type ExpenseFormTarget } from './expense-form-dialog';
-import { EXPENSE_LIST_TITLE_ID, ExpenseList } from './expense-list';
+import { EXPENSE_LIST_TITLE_ID, ExpenseList, REVIEW_BUTTON_ATTRIBUTE } from './expense-list';
 import { ADD_EXPENSE_BUTTON_ID, ExpensesHeader, UPLOAD_RECEIPT_BUTTON_ID } from './expenses-header';
 import { EMPTY_STATE_TITLE_ID, ExpensesEmptyState, ExpensesLoadError, ExpensesSkeleton } from './expenses-states';
 import { MONTH_TITLE_ID, MonthSwitcher } from './month-switcher';
 import { MonthlySummary } from './monthly-summary';
+import { ReviewExpenseDialog } from './review-expense-dialog';
 
 /** The data operations the screen needs; injected so the screen never imports the network layer itself. */
 export interface ExpensesApi {
   /** One calendar month (YYYY-MM), newest first. */
   list: (month: MonthKey) => Promise<Expense[]>;
   create: (input: CreateExpenseInput) => Promise<Expense>;
+  /** PATCH: PROCESSED expenses only. */
   update: (id: string, input: UpdateExpenseInput) => Promise<Expense>;
+  /** Confirms a REVIEW receipt (or completes a FAILED one) with every field; resolves with it PROCESSED. */
+  confirm: (id: string, input: CreateExpenseInput) => Promise<ProcessedExpense>;
   remove: (id: string) => Promise<void>;
   /** Uploads a prepared receipt photo; resolves with its PENDING expense once the photo is stored. */
   uploadReceipt: (image: Blob) => Promise<UnprocessedExpense>;
@@ -51,8 +56,26 @@ export interface ExpensesWorkspaceProps {
 }
 
 type ToastKey = keyof Dictionary['expenses']['toast'];
+type ToastActionKey = keyof Dictionary['expenses']['toastActions'];
+
+interface ToastState {
+  key: ToastKey;
+  id: number;
+  /** Opens the review dialog for this receipt (its row offers the same action). */
+  action?: { key: ToastActionKey; expenseId: string };
+}
 
 const TOAST_VISIBLE_MS = 3200;
+/** A toast with an action stays longer, and holds while hovered or focused. */
+const TOAST_ACTION_VISIBLE_MS = 8000;
+
+/** The row's Review / Complete button in the layout on screen (table or stacked list), if it is there. */
+function reviewButtonFor(expenseId: string): HTMLElement | null {
+  for (const element of document.querySelectorAll<HTMLElement>(`[${REVIEW_BUTTON_ATTRIBUTE}="${expenseId}"]`)) {
+    if (element.offsetParent !== null) return element;
+  }
+  return null;
+}
 
 /** Where focus goes when a dialog closes and the control that opened it is gone (e.g. its row was deleted). */
 function fallbackFocus(): HTMLElement | null {
@@ -81,12 +104,18 @@ export function ExpensesWorkspace({ api, onUnauthorized }: ExpensesWorkspaceProp
   const [photoOpen, setPhotoOpen] = useState(false);
   const [photoTarget, setPhotoTarget] = useState<Expense | null>(null);
   const [photoSession, setPhotoSession] = useState(0);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [reviewTarget, setReviewTarget] = useState<CompletableExpense | null>(null);
+  const [reviewSession, setReviewSession] = useState(0);
   // Bumped per upload so polling restarts its window; deleted ids never count as "moved".
   const [uploadCount, setUploadCount] = useState(0);
   const deletedIds = useRef(new Set<string>());
+  // Receipts uploaded in this visit: only their reading is worth a toast.
+  const uploadedIds = useRef(new Set<string>());
 
-  const [toast, setToast] = useState<{ key: ToastKey; id: number } | null>(null);
+  const [toast, setToast] = useState<ToastState | null>(null);
   const [toastOpen, setToastOpen] = useState(false);
+  const [toastHeld, setToastHeld] = useState(false);
 
   const entry = useSyncExternalStore(
     store.subscribe,
@@ -103,16 +132,21 @@ export function ExpensesWorkspace({ api, onUnauthorized }: ExpensesWorkspaceProp
     if (entry?.status === 'error' && entry.unauthorized) onUnauthorized();
   }, [entry, onUnauthorized]);
 
-  // Auto-hide; a newer toast restarts the clock.
+  // Auto-hide; a newer toast restarts the clock, and hovering or focusing it holds it.
   useEffect(() => {
-    if (!toast) return;
-    const timer = window.setTimeout(() => setToastOpen(false), TOAST_VISIBLE_MS);
+    if (!toast || toastHeld) return;
+    const timer = window.setTimeout(
+      () => setToastOpen(false),
+      toast.action ? TOAST_ACTION_VISIBLE_MS : TOAST_VISIBLE_MS,
+    );
     return () => window.clearTimeout(timer);
-  }, [toast]);
+  }, [toast, toastHeld]);
 
-  const showToast = useCallback((key: ToastKey) => {
-    setToast((current) => ({ key, id: (current?.id ?? 0) + 1 }));
+  const showToast = useCallback((key: ToastKey, action?: ToastState['action']) => {
+    setToast((current) => ({ key, id: (current?.id ?? 0) + 1, action }));
     setToastOpen(true);
+    // A new toast is not under the pointer (or focus) yet.
+    setToastHeld(false);
   }, []);
 
   const items = entry?.status === 'ready' ? entry.items : null;
@@ -125,13 +159,23 @@ export function ExpensesWorkspace({ api, onUnauthorized }: ExpensesWorkspaceProp
     enabled: hasPendingReceipt(items),
     restartKey: uploadCount,
     onRefreshed: (refreshedMonth, before, after) => {
-      const { read, moved } = settleReceipts(before, after);
+      const { read, toReview, failed, moved } = settleReceipts(before, after);
       // The row now shows what the AI read; point the eye at it.
       const first = read[0];
       if (first) setHighlightId(first);
+
+      // Only receipts uploaded in this visit earn a toast; one is enough even if several settle at once.
+      const mine = (ids: string[]) => ids.find((id) => uploadedIds.current.has(id));
+      const reviewId = mine(toReview);
+      const failedId = mine(failed);
+      for (const id of read) uploadedIds.current.delete(id);
+      if (reviewId) showToast('receiptToReview', { key: 'review', expenseId: reviewId });
+      else if (failedId) showToast('receiptFailed', { key: 'complete', expenseId: failedId });
+
       if (moved.some((id) => !deletedIds.current.has(id))) {
         // Its receipt date put it in a month we cannot name: refetch any other month when it is next shown.
         store.invalidateExcept(refreshedMonth);
+        for (const id of moved) uploadedIds.current.delete(id);
         showToast('receiptFiled');
       }
     },
@@ -141,9 +185,16 @@ export function ExpensesWorkspace({ api, onUnauthorized }: ExpensesWorkspaceProp
   const thisMonth = currentMonthKey();
   const summary = useMemo(() => summarizeMonth(items ?? []), [items]);
   // One display for every row of the month (and its delete dialog), so amounts compare at a glance.
-  // Unprocessed receipts have no currency yet, so only processed ones decide it.
+  // Every currency on screen decides it: confirmed ones and those read for review.
   const moneyDisplay = useMemo(
-    () => moneyDisplayFor((items ?? []).filter(isProcessed).map((expense) => expense.currency)),
+    () =>
+      moneyDisplayFor(
+        (items ?? []).flatMap((expense) => {
+          if (expense.status === 'PROCESSED') return [expense.currency];
+          if (expense.status === 'REVIEW' && expense.currency !== undefined) return [expense.currency];
+          return [];
+        }),
+      ),
     [items],
   );
   const monthLabel = formatMonth(month, intlLocale);
@@ -175,6 +226,7 @@ export function ExpensesWorkspace({ api, onUnauthorized }: ExpensesWorkspaceProp
     setMonth(target);
     setHighlightId(expense.id);
     setUploadCount((count) => count + 1);
+    uploadedIds.current.add(expense.id);
     setUploadOpen(false);
     showToast('receiptUploaded');
   }
@@ -185,19 +237,69 @@ export function ExpensesWorkspace({ api, onUnauthorized }: ExpensesWorkspaceProp
     setPhotoOpen(true);
   }
 
+  /**
+   * Opens the review dialog. From the row, focus is already on its button. From the toast or the
+   * summary, focus moves to the row's button first: the page scrolls to the row, and closing the
+   * dialog returns focus there instead of to a toast that is gone.
+   */
+  function openReview(expense: CompletableExpense): void {
+    const rowButton = reviewButtonFor(expense.id);
+    if (rowButton && document.activeElement !== rowButton) rowButton.focus();
+    setReviewTarget(expense);
+    setReviewSession((session) => session + 1);
+    setReviewOpen(true);
+  }
+
+  function reviewFromToast(expenseId: string): void {
+    setToastOpen(false);
+    setToastHeld(false);
+    const expense = items?.find((item) => item.id === expenseId);
+    // Gone or no longer waiting (deleted, confirmed, or another month on screen): the toast just closes.
+    if (expense && isCompletable(expense)) openReview(expense);
+  }
+
+  function reviewFirst(): void {
+    const expense = firstToReview(items ?? []);
+    if (expense) openReview(expense);
+  }
+
   function openDelete(expense: Expense): void {
     setDeleteTarget(expense);
     setDeleteOpen(true);
   }
 
-  /** Puts the saved expense in its month (out of any other) and follows it there, so the user sees the result. */
-  function applySaved(saved: Expense, toastKey: ToastKey): void {
+  /**
+   * Puts the saved expense in its month (out of any other) and follows it there, so the user sees
+   * the result. A date in another month files it there: the same handling for edits and confirmations.
+   */
+  function followSaved(saved: Expense): void {
     const target = monthKeyOf(saved.date);
     store.apply({ type: 'upsert', expense: saved }, target);
     setMonth(target);
     setHighlightId(saved.id);
+  }
+
+  function applySaved(saved: Expense, toastKey: ToastKey): void {
+    followSaved(saved);
     setFormOpen(false);
     showToast(toastKey);
+  }
+
+  async function handleConfirm(expense: CompletableExpense, input: CreateExpenseInput): Promise<void> {
+    try {
+      followSaved(await api.confirm(expense.id, input));
+      setReviewOpen(false);
+      showToast('confirmed');
+    } catch (error: unknown) {
+      if (isApiStatus(error, 404)) {
+        // Deleted elsewhere: drop the stale row; the dialog explains what happened.
+        store.apply({ type: 'remove', id: expense.id });
+      } else if (isApiStatus(error, 409)) {
+        // Confirmed or changed elsewhere: show its month as the server has it now.
+        void store.refresh(monthKeyOf(expense.date), api.list);
+      }
+      throw error;
+    }
   }
 
   async function handleSave(input: CreateExpenseInput): Promise<void> {
@@ -251,6 +353,14 @@ export function ExpensesWorkspace({ api, onUnauthorized }: ExpensesWorkspaceProp
 
   const clearHighlight = useCallback(() => setHighlightId(null), []);
 
+  const pendingAction = toast?.action;
+  const toastAction: ToastAction | undefined = pendingAction
+    ? {
+        label: t.expenses.toastActions[pendingAction.key],
+        onAction: () => reviewFromToast(pendingAction.expenseId),
+      }
+    : undefined;
+
   return (
     <section aria-labelledby="expenses-title" className="flex flex-col gap-8">
       <div className="animate-rise">
@@ -280,7 +390,7 @@ export function ExpensesWorkspace({ api, onUnauthorized }: ExpensesWorkspaceProp
           ) : null}
           {items && items.length > 0 ? (
             <div className="flex animate-reveal flex-col gap-8">
-              <MonthlySummary summary={summary} />
+              <MonthlySummary summary={summary} onReview={reviewFirst} />
               <ExpenseList
                 monthLabel={monthLabel}
                 expenses={items}
@@ -288,6 +398,7 @@ export function ExpensesWorkspace({ api, onUnauthorized }: ExpensesWorkspaceProp
                 highlightId={highlightId}
                 onHighlightEnd={clearHighlight}
                 onEdit={openEdit}
+                onReview={openReview}
                 onDelete={openDelete}
                 onViewReceipt={openPhoto}
               />
@@ -319,6 +430,15 @@ export function ExpensesWorkspace({ api, onUnauthorized }: ExpensesWorkspaceProp
         loadPhoto={api.receiptPhoto}
         fallbackFocus={fallbackFocus}
       />
+      <ReviewExpenseDialog
+        open={reviewOpen}
+        session={reviewSession}
+        expense={reviewTarget}
+        onClose={() => setReviewOpen(false)}
+        onConfirm={handleConfirm}
+        loadPhoto={api.receiptPhoto}
+        fallbackFocus={fallbackFocus}
+      />
       <DeleteExpenseDialog
         open={deleteOpen}
         expense={deleteTarget}
@@ -327,7 +447,14 @@ export function ExpensesWorkspace({ api, onUnauthorized }: ExpensesWorkspaceProp
         onConfirm={handleDelete}
         fallbackFocus={fallbackFocus}
       />
-      <Toast message={toast ? t.expenses.toast[toast.key] : null} messageId={toast?.id} open={toastOpen} />
+      <Toast
+        message={toast ? t.expenses.toast[toast.key] : null}
+        messageId={toast?.id}
+        open={toastOpen}
+        tone={toast?.key === 'receiptFailed' ? 'attention' : 'success'}
+        action={toastAction}
+        onHoldChange={setToastHeld}
+      />
     </section>
   );
 }

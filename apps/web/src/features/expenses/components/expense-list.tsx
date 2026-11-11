@@ -1,16 +1,20 @@
 'use client';
 
-import type { Expense, ProcessedExpense, UnprocessedExpense } from '@receipts-app/contracts';
+import type { Expense, ExpenseStatus, ProcessedExpense, ReviewExpense } from '@receipts-app/contracts';
 import { PencilIcon, ReceiptIcon, TrashIcon } from '@/components/icons';
+import { Button } from '@/components/ui/button';
 import { IconButton } from '@/components/ui/icon-button';
 import { useI18n } from '@/i18n/i18n-provider';
 import { cn } from '@/lib/cn';
 import { formatMoney, type MoneyDisplay } from '@/lib/money';
 import { formatLongDate, formatRowDate } from '../format';
-import { hasReceiptPhoto, isProcessed } from '../status';
-import { ReceiptStatus } from './receipt-status';
+import { type CompletableExpense, hasReceiptPhoto, isCompletable, isProcessed, uploadDay } from '../status';
+import { ReceiptStatus, ReviewBadge } from './receipt-status';
 
 export const EXPENSE_LIST_TITLE_ID = 'expense-list-title';
+
+/** Marks each row's Review / Complete button, so other entry points can move focus to it. */
+export const REVIEW_BUTTON_ATTRIBUTE = 'data-review-for';
 
 export interface ExpenseListProps {
   monthLabel: string;
@@ -20,8 +24,10 @@ export interface ExpenseListProps {
   /** Row that was just saved; it gets a short highlight wash. */
   highlightId: string | null;
   onHighlightEnd: () => void;
-  /** Only offered on PROCESSED rows: an unprocessed receipt has nothing to edit yet. */
+  /** Only offered on PROCESSED rows: the API edits nothing else. */
   onEdit: (expense: ProcessedExpense) => void;
+  /** Offered on REVIEW ("Review") and FAILED ("Complete") rows: confirms them from the photo. */
+  onReview: (expense: CompletableExpense) => void;
   onDelete: (expense: Expense) => void;
   /** Offered only on rows with a photo (uploaded receipts, whatever their status). */
   onViewReceipt: (expense: Expense) => void;
@@ -35,11 +41,15 @@ export function ExpenseList({
   highlightId,
   onHighlightEnd,
   onEdit,
+  onReview,
   onDelete,
   onViewReceipt,
 }: ExpenseListProps) {
   const { t, intlLocale } = useI18n();
   const { list } = t.expenses;
+  // A text button joins the icons on rows to review or complete; only then does the column widen.
+  const wideActions = expenses.some(isCompletable);
+  const actions = { onEdit, onReview, onDelete, onViewReceipt };
 
   return (
     <section aria-labelledby={EXPENSE_LIST_TITLE_ID} className="flex flex-col gap-3">
@@ -60,12 +70,12 @@ export function ExpenseList({
         <table className="hidden w-full table-fixed text-sm md:table">
           <caption className="sr-only">{list.caption(monthLabel)}</caption>
           <colgroup>
-            <col className="w-36" />
+            <col className="w-32 lg:w-36" />
             <col />
-            <col className="w-40" />
+            <col className="w-32 lg:w-40" />
             <col className="w-36" />
-            {/* Fits three 32px actions 8px apart plus the cell padding. */}
-            <col className="w-36" />
+            {/* Three 32px actions 8px apart plus the cell padding; a "Complete" button takes the first slot when needed. */}
+            <col className={wideActions ? 'w-52' : 'w-36'} />
           </colgroup>
           <thead>
             <tr className="border-b border-line text-left text-xs text-ink-muted">
@@ -104,6 +114,22 @@ export function ExpenseList({
                       {formatMoney(expense.total, expense.currency, intlLocale, { display: moneyDisplay })}
                     </td>
                   </>
+                ) : expense.status === 'REVIEW' ? (
+                  <>
+                    {/* What the AI read sits in its columns; the badge says none of it is confirmed yet. */}
+                    <td className="px-3 py-3">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <ReviewMerchant expense={expense} />
+                        <ReviewBadge />
+                      </div>
+                    </td>
+                    <td className="truncate px-3 py-3 text-ink-muted">
+                      {expense.category ? t.categories[expense.category] : <NotRead label={list.categoryNotRead} />}
+                    </td>
+                    <td className="px-3 py-3 text-right whitespace-nowrap tabular-nums">
+                      <ReviewTotal expense={expense} moneyDisplay={moneyDisplay} />
+                    </td>
+                  </>
                 ) : (
                   <>
                     {/* No merchant or category yet: the status spans both; date, total and actions keep their columns. */}
@@ -121,7 +147,7 @@ export function ExpenseList({
                   </>
                 )}
                 <td className="py-2 pr-5 pl-3">
-                  <RowActions expense={expense} onEdit={onEdit} onDelete={onDelete} onViewReceipt={onViewReceipt} />
+                  <RowActions expense={expense} {...actions} />
                 </td>
               </tr>
             ))}
@@ -154,6 +180,26 @@ export function ExpenseList({
                     </span>
                   </div>
                 </>
+              ) : expense.status === 'REVIEW' ? (
+                <>
+                  <p className="flex min-w-0 pt-1.5">
+                    <ReviewMerchant expense={expense} />
+                  </p>
+                  <p className="pt-1.5 pr-1 text-right whitespace-nowrap tabular-nums">
+                    <ReviewTotal expense={expense} moneyDisplay={moneyDisplay} />
+                  </p>
+                  <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5 text-sm text-ink-muted">
+                    <time dateTime={expense.date} className="whitespace-nowrap tabular-nums">
+                      {formatRowDate(expense.date, intlLocale)}
+                    </time>
+                    <ReviewBadge />
+                    {expense.category ? (
+                      <span className="truncate rounded-xs bg-surface-muted px-1.5 text-xs leading-5 text-ink-muted">
+                        {t.categories[expense.category]}
+                      </span>
+                    ) : null}
+                  </div>
+                </>
               ) : (
                 <>
                   <div className="flex min-w-0 pt-1.5">
@@ -170,7 +216,12 @@ export function ExpenseList({
                   </div>
                 </>
               )}
-              <RowActions expense={expense} onEdit={onEdit} onDelete={onDelete} onViewReceipt={onViewReceipt} />
+              {/* A text button would squeeze the merchant line, so those rows put their actions on a line of their own. */}
+              <RowActions
+                expense={expense}
+                {...actions}
+                className={isCompletable(expense) ? 'col-span-2 pt-1' : undefined}
+              />
             </li>
           ))}
         </ul>
@@ -183,7 +234,7 @@ export function ExpenseList({
  * Total cell of a receipt with no amount yet: a dash holds the column's right edge,
  * and assistive tech hears why it is empty.
  */
-function NoTotal({ status }: { status: UnprocessedExpense['status'] }) {
+function NoTotal({ status }: { status: Exclude<ExpenseStatus, 'PROCESSED'> }) {
   const { t } = useI18n();
 
   return (
@@ -196,28 +247,87 @@ function NoTotal({ status }: { status: UnprocessedExpense['status'] }) {
   );
 }
 
+/** A merchant the AI read, or a muted placeholder that says it could not. */
+function ReviewMerchant({ expense }: { expense: ReviewExpense }) {
+  const { t } = useI18n();
+
+  return expense.merchant ? (
+    <span className="min-w-0 truncate font-medium text-ink">{expense.merchant}</span>
+  ) : (
+    <span className="min-w-0 truncate text-ink-subtle">{t.expenses.list.merchantNotRead}</span>
+  );
+}
+
+/** The total the AI read; without both amount and currency it is not shown (an amount alone is ambiguous). */
+function ReviewTotal({ expense, moneyDisplay }: { expense: ReviewExpense; moneyDisplay: MoneyDisplay }) {
+  const { intlLocale } = useI18n();
+
+  if (expense.total === undefined || expense.currency === undefined) return <NoTotal status="REVIEW" />;
+  return (
+    <span className="font-medium text-ink">
+      {formatMoney(expense.total, expense.currency, intlLocale, { display: moneyDisplay })}
+    </span>
+  );
+}
+
+/** A cell the AI left empty: a dash holds its place, and assistive tech hears why. */
+function NotRead({ label }: { label: string }) {
+  return (
+    <>
+      <span aria-hidden="true" className="text-ink-subtle">
+        –
+      </span>
+      <span className="sr-only">{label}</span>
+    </>
+  );
+}
+
 interface RowActionsProps {
   expense: Expense;
   onEdit: (expense: ProcessedExpense) => void;
+  onReview: (expense: CompletableExpense) => void;
   onDelete: (expense: Expense) => void;
   onViewReceipt: (expense: Expense) => void;
+  className?: string;
 }
 
 /**
- * View receipt only when there is a photo; edit only for PROCESSED; delete for every status.
- * Right-aligned, so delete and edit keep their places whichever actions a row has.
+ * Review / Complete first on REVIEW and FAILED rows (their main action); view receipt only when
+ * there is a photo; edit only for PROCESSED; delete for every status, always last.
+ * Right-aligned, so delete keeps its place whichever actions a row has.
  */
-function RowActions({ expense, onEdit, onDelete, onViewReceipt }: RowActionsProps) {
+function RowActions({ expense, onEdit, onReview, onDelete, onViewReceipt, className }: RowActionsProps) {
   const { t, intlLocale } = useI18n();
   const { list } = t.expenses;
   const processed = isProcessed(expense) ? expense : null;
-  const date = formatLongDate(expense.date, intlLocale);
+  const completable = isCompletable(expense) ? expense : null;
+  // A merchant names the row when there is one (confirmed, or read for review); otherwise its upload day.
+  const merchant = processed?.merchant ?? (expense.status === 'REVIEW' ? expense.merchant : undefined);
+  const uploaded = formatLongDate(uploadDay(expense), intlLocale);
+  const reviewProps = { [REVIEW_BUTTON_ATTRIBUTE]: completable?.id };
 
   return (
-    <div className="flex items-center justify-end gap-2">
+    <div className={cn('flex items-center justify-end gap-2', className)}>
+      {completable ? (
+        <Button
+          variant="secondary"
+          size="sm"
+          {...reviewProps}
+          aria-label={
+            completable.status === 'FAILED'
+              ? list.completeLabel(uploaded)
+              : merchant
+                ? list.reviewLabel(merchant)
+                : list.reviewUploadedLabel(uploaded)
+          }
+          onClick={() => onReview(completable)}
+        >
+          {completable.status === 'FAILED' ? list.complete : list.review}
+        </Button>
+      ) : null}
       {hasReceiptPhoto(expense) ? (
         <IconButton
-          label={processed ? list.viewReceiptLabel(processed.merchant) : list.viewUploadedReceiptLabel(date)}
+          label={merchant ? list.viewReceiptLabel(merchant) : list.viewUploadedReceiptLabel(uploaded)}
           tooltip={list.viewReceipt}
           tooltipSide="top"
           onClick={() => onViewReceipt(expense)}
@@ -236,7 +346,7 @@ function RowActions({ expense, onEdit, onDelete, onViewReceipt }: RowActionsProp
         </IconButton>
       ) : null}
       <IconButton
-        label={processed ? list.deleteLabel(processed.merchant) : list.receiptDeleteLabel(date)}
+        label={processed ? list.deleteLabel(processed.merchant) : list.receiptDeleteLabel(uploaded)}
         tooltip={list.delete}
         tooltipSide="top"
         tooltipAlign="end"

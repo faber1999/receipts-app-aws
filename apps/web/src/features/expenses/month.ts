@@ -68,6 +68,8 @@ export interface MonthSummary {
   currencies: CurrencySummary[];
   /** Receipts still being read; they have no amount yet, so they are left out of the totals. */
   pendingCount: number;
+  /** Receipts the AI read but the person has not confirmed; left out of the totals until they are. */
+  reviewCount: number;
   /** Receipts that could not be read; no amount, so they are left out of the totals. */
   failedCount: number;
 }
@@ -75,11 +77,14 @@ export interface MonthSummary {
 export function summarizeMonth(expenses: readonly Expense[]): MonthSummary {
   const byCurrency = new Map<string, { total: number; count: number; categories: Map<ExpenseCategory, number> }>();
   let pendingCount = 0;
+  let reviewCount = 0;
   let failedCount = 0;
 
   for (const expense of expenses) {
+    // Only confirmed expenses count: a REVIEW amount may still be wrong, and the others have none.
     if (!isProcessed(expense)) {
       if (expense.status === 'PENDING') pendingCount += 1;
+      else if (expense.status === 'REVIEW') reviewCount += 1;
       else failedCount += 1;
       continue;
     }
@@ -104,5 +109,5 @@ export function summarizeMonth(expenses: readonly Expense[]): MonthSummary {
     }))
     .sort((a, b) => b.count - a.count || a.currency.localeCompare(b.currency));
 
-  return { currencies, pendingCount, failedCount };
+  return { currencies, pendingCount, reviewCount, failedCount };
 }

@@ -3,11 +3,14 @@ import { env } from '@/lib/env';
 
 export class ApiError extends Error {
   readonly status: number;
+  /** The parsed JSON error body, when there is one (e.g. per-field validation errors on a 400). */
+  readonly body: unknown;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, body?: unknown) {
     super(message);
     this.name = 'ApiError';
     this.status = status;
+    this.body = body;
   }
 }
 
@@ -30,7 +33,8 @@ export async function apiRequest(method: string, path: string, body?: unknown): 
   });
 
   if (!response.ok) {
-    throw new ApiError(response.status, `${method} ${path} failed with ${response.status}`);
+    const errorBody: unknown = await response.json().catch(() => undefined);
+    throw new ApiError(response.status, `${method} ${path} failed with ${response.status}`, errorBody);
   }
   return response.status === 204 ? undefined : response.json();
 }
