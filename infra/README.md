@@ -9,7 +9,8 @@ AWS CDK v2 app (TypeScript) that defines every AWS resource of Receipts App. All
 | `AuthStack` | Cognito User Pool (Lite plan, email sign-in, email-only recovery) and the web app client (SRP, no secret, OAuth disabled, 1 h access / 7 d refresh tokens, revocation) | — |
 | `DataStack` | DynamoDB table (on-demand, `PK`/`SK` + `GSI1`) and the private receipts bucket (EventBridge notifications, CORS for browser `POST` uploads) | — |
 | `ApiStack` | API Gateway HTTP API with a Cognito JWT authorizer as the default; one Lambda per route, each with its own role and a one-week log group | Auth, Data |
-| `WebStack` | Private site bucket, CloudFront distribution (OAC, HTTPS redirect, URL rewrite function, security headers policy) and the deployment of `apps/web/out` | Api |
+| `ProcessingStack` | EventBridge rule for `Object Created` under `receipts/`; Step Functions Standard workflow (JSONata) with the `extract-receipt` and `save-extraction` Lambdas, a direct DynamoDB `UpdateItem` to mark failures, and an encrypted SQS dead-letter queue (14 days). Reads the Anthropic key from the SSM `SecureString` `/receipts-app/anthropic-api-key`, which must exist before deploying | Data |
+| `WebStack` | Private site bucket, CloudFront distribution (OAC, HTTPS redirect, URL rewrite function, security headers policy whose CSP allows the receipts bucket for uploads and photos) and the deployment of `apps/web/out` | Data, Api |
 | `CiStack` | The `github-deployer` IAM user for GitHub Actions. Its only permission is `sts:AssumeRole` on the CDK bootstrap roles; its access key is created by hand in the console, never in the stack | — |
 
 Cross-stack references (for example the table passed to `ApiStack`) become CloudFormation exports and imports. An exported value can't be removed while another stack still imports it.
@@ -66,10 +67,11 @@ aws cloudformation describe-stacks --stack-name AuthStack --query "Stacks[0].Out
 
 - the table is on-demand and has `GSI1`
 - buckets block all public access; the receipts bucket only allows `POST` uploads and sends events to EventBridge
-- every API route uses the JWT authorizer
-- every Lambda runs on Node.js 24 and arm64
-- every API log group keeps logs for one week
-- no IAM statement in the API grants `*`
+- every API route uses the JWT authorizer, and the receipt routes exist
+- every Lambda (API and processing) runs on Node.js 24 and arm64, and its log group keeps logs for one week
+- no IAM statement in the API or the processing workflow grants `*`
+- the workflow is Standard, starts only for uploads under `receipts/`, only writes to the table with `UpdateItem`, and only reads the Anthropic key parameter from SSM
+- the dead-letter queue is encrypted and keeps messages for 14 days
 - CloudFront redirects to HTTPS and sends CSP and HSTS
 - resources are tagged with the project name
 

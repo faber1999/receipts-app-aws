@@ -10,26 +10,46 @@ Every route requires a Cognito **access token** (`Authorization: Bearer <token>`
 |---|---|---|
 | `GET /expenses?month=YYYY-MM` | `expenses/handlers/list-expenses.ts` | `200` with the month's expenses, newest first |
 | `POST /expenses` | `expenses/handlers/create-expense.ts` | `201` with the created expense (manual entry, `PROCESSED`) |
-| `PATCH /expenses/{id}` | `expenses/handlers/update-expense.ts` | `200` with the updated expense; `404` if it doesn't exist or isn't yours |
-| `DELETE /expenses/{id}` | `expenses/handlers/delete-expense.ts` | `204`; `404` if it doesn't exist or isn't yours |
+| `PATCH /expenses/{id}` | `expenses/handlers/update-expense.ts` | `200` with the updated expense. Only `PROCESSED` expenses: `409` otherwise, `404` if it doesn't exist or isn't yours |
+| `POST /expenses/{id}/confirm` | `expenses/handlers/confirm-expense.ts` | `200` with the `PROCESSED` expense. Takes every field and confirms a `REVIEW` or `FAILED` expense: `409` in any other status, `404` if it doesn't exist |
+| `DELETE /expenses/{id}` | `expenses/handlers/delete-expense.ts` | `204`, and its photo is deleted from S3; `404` if it doesn't exist or isn't yours |
+| `GET /expenses/{id}/receipt` | `receipts/handlers/get-receipt-photo.ts` | `200` with a presigned GET URL to the photo, valid for 5 minutes; `404` if the expense doesn't exist or has no photo |
 | `POST /receipts` | `receipts/handlers/create-receipt-upload.ts` | `201` with a `PENDING` expense and a presigned POST to upload the photo to S3 |
 
 Invalid input returns `400` with the Zod field errors.
 
+### Status rules
+
+Every write is conditioned on the expense status, so the API and the workflow never step on each other:
+
+| Writer | Condition |
+|---|---|
+| Processing workflow (`save-extraction`, `MarkFailed`) | `PENDING` |
+| `POST /expenses/{id}/confirm` | `REVIEW` or `FAILED` |
+| `PATCH /expenses/{id}` | `PROCESSED` |
+
+On a failed condition, `ReturnValuesOnConditionCheckFailure: 'ALL_OLD'` returns the current item inside the error, so the handler answers `404` (no item) or `409` (wrong status) without reading first.
+
 ## Receipt processing
 
-`receipts/handlers/extract-receipt.ts` is not an HTTP handler: the processing workflow (Step Functions) invokes it with the uploaded object (`{ bucket, key }`).
+Two Lambdas are not HTTP handlers: the processing workflow (Step Functions) invokes them in turn.
+
+**`receipts/handlers/extract-receipt.ts`** gets the uploaded object (`{ bucket, key }`):
 
 1. It parses the S3 key to learn the owner, the receipt id and the content type (`receipts/receipt-key.ts`). Keys the app didn't create throw `NotAReceiptError`.
-2. It downloads the photo and sends it to Claude Haiku 5.5 (`receipts/receipt-extractor.ts`), with structured outputs bound to `receiptExtractionSchema`.
-3. It returns `{ userId, receiptId, expense }`. It doesn't write to DynamoDB: that is a separate workflow step, so a failed write is retried without paying for the model call again.
+2. It downloads the photo and sends it to Claude Haiku 5.5 (`receipts/receipt-extractor.ts`), with structured outputs bound to `receiptExtractionSchema`. Each field can come back `null` when the model can't read it with confidence.
+3. It returns `{ userId, receiptId, expense }`. It doesn't write to DynamoDB: that is the next step, so a failed write is retried without paying for the model call again.
+
+**`receipts/handlers/save-extraction.ts`** gets that result, validates it again with Zod and saves it with `toExtractionUpdate` (`receipts/extraction-update.ts`): only the fields that were read, `status = REVIEW`, and `GSI1SK` when the date was read. The update is conditioned on `PENDING`; if the receipt is no longer pending (a duplicate event, or the expense was deleted), it returns `{ saved: false }` and the workflow ends normally. It logs which fields were missing, never their values.
 
 | Error (`errorType` in Step Functions) | Meaning | Workflow reaction |
 |---|---|---|
-| `UnreadableReceiptError` | The photo is not a readable receipt; the model said why | Mark `FAILED`, no retry |
-| `ReceiptExtractionError` | Refusal, truncated or invalid model output | Mark `FAILED` |
+| `UnreadableReceiptError` | The image is not a receipt; the model said why | Mark `FAILED`, no retry |
+| `ReceiptExtractionError` | Refusal, truncated or invalid model output | Mark `FAILED`, dead-letter queue |
 | `NotAReceiptError` | Object outside the app's key format | Ignore |
-| Others (network, throttling) | Transient | Retry |
+| `ReceiptDeletedError` | The expense and its photo were deleted before the photo was read | Ignore |
+| Lambda service errors | Transient | Retry (added by CDK); the Anthropic SDK also retries network errors and 429s |
+| Anything else | Unexpected | Mark `FAILED`, dead-letter queue |
 
 The Anthropic API key is read from the SSM `SecureString` named by `ANTHROPIC_API_KEY_PARAMETER`, through Powertools Parameters with a 5-minute cache, so a rotated key is picked up without a redeploy. Logs never include the merchant or the total.
 
@@ -41,12 +61,14 @@ Bedrock was the original choice; see the root README for why the Anthropic API i
 - **Ownership:** the user id is always the JWT `sub` (`shared/auth.ts`), never a path, query or body value. Keys are `USER#<sub>` / `RECEIPT#<id>`, so another user's item simply isn't found.
 - **Conditional writes:**
   - create uses `attribute_not_exists(PK)`
-  - update and delete use `attribute_exists(PK)`; a failed condition maps to `404`
+  - delete uses `attribute_exists(PK)` and `ReturnValues: 'ALL_OLD'`, which gives the deleted item's `imageKey` without an extra read; a failed condition maps to `404`
+  - update, confirm and the workflow check the status (see [Status rules](#status-rules))
 - **Reserved words:** every attribute in update expressions goes through `ExpressionAttributeNames`, because `date` and `status` are DynamoDB reserved words.
 - **Monthly listing:** a query on `GSI1` with `begins_with(GSI1SK, 'DATE#YYYY-MM')`, read through `paginateQuery`, so results are complete even past the 1 MB page limit.
 - **Receipt uploads:**
   - The presigned POST policy limits the file to JPEG or PNG and at most 10 MB, and S3 enforces it.
   - The object key `receipts/<sub>/<id>.<ext>` carries the owner, so the processing pipeline can tell whose receipt it is from the S3 event alone.
+- **Receipt photos:** signing a GET URL is a local computation with the Lambda's credentials, so the photo Lambda only needs `GetItem` and `s3:GetObject`; the browser downloads the photo straight from S3. Deleting an expense deletes its photo after the item; if S3 fails, the request still succeeds and a warning is logged.
 - **Warm starts:** SDK clients and the logger are created outside the handler, so warm invocations reuse them.
 - **Validated environment:** `shared/env.ts` validates the Lambda environment at cold start: `TABLE_NAME` and `RECEIPTS_BUCKET`.
 
@@ -59,12 +81,15 @@ src/
 │  ├─ expense-repository.ts      Contract ↔ DynamoDB item mapping
 │  └─ expense-repository.test.ts
 ├─ receipts/
-│  ├─ handlers/                  Receipt upload (HTTP) and extraction (workflow) Lambdas
+│  ├─ handlers/                  Upload and photo (HTTP); extract and save (workflow) Lambdas
 │  ├─ receipt-key.ts             Builds and parses receipts/<userId>/<id>.<ext>
-│  └─ receipt-extractor.ts       Claude extraction behind the ReceiptExtractor type
+│  ├─ receipt-extractor.ts       Claude extraction behind the ReceiptExtractor type
+│  └─ extraction-update.ts       What an extraction saves: the fields read, status REVIEW
 └─ shared/                       auth (JWT sub), db client, env, HTTP helpers
 scripts/smoke-test.ts            End-to-end test against the deployed API
+scripts/upload-receipt.ts        Uploads a real photo through the API and waits for the workflow
 scripts/try-extraction.ts        Runs the extractor on a local photo
+scripts/script-helpers.ts        API URL, token and S3 POST helpers shared by the scripts
 ```
 
 ## Scripts
@@ -74,6 +99,7 @@ scripts/try-extraction.ts        Runs the extractor on a local photo
 | `pnpm test` | Unit tests (Vitest) |
 | `pnpm smoke` | Smoke test against the deployed API |
 | `pnpm exec tsx scripts/try-extraction.ts <photo>` | Extracts one local receipt photo with Claude. Reads the API key from SSM (needs `aws login`) and costs a fraction of a cent per run |
+| `pnpm exec tsx scripts/upload-receipt.ts <photo>` | Uploads a real photo through the deployed API and S3, then polls until the workflow leaves `PENDING`. Asks for an access token like the smoke test |
 
 ### Smoke test
 
@@ -88,4 +114,4 @@ pnpm --filter @receipts-app/api smoke
   - validation (400)
   - create, list by month, update, delete and not-found cases
   - a real presigned upload to S3, including a rejected upload with a mismatched content type
-- Removes the expenses it creates. The tiny test image stays in the receipts bucket.
+- Removes the expenses it creates, and their photos with them. The tiny test image also starts the processing workflow, which ends as unreadable (or does nothing when the expense is already gone).

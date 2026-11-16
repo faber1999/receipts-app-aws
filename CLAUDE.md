@@ -39,15 +39,17 @@ Next.js (S3 + CloudFront)
         │
      Lambdas (CRUD) ──► DynamoDB (single-table)
         │
-   Lambda: genera presigned URL ──► S3 (bucket de recibos)
+   Lambda: genera presigned URL (POST para subir, GET para ver) ──► S3 (bucket de recibos, privado)
                                         │
-                           EventBridge (Object Created)
+                           EventBridge (Object Created, prefijo receipts/)
                                         │
-                  Step Functions:
-                    1. Lambda extrae datos de la imagen con Claude (API de Anthropic, JSON)
+                  Step Functions (Standard, JSONata):
+                    1. Lambda extract-receipt: Claude lee la imagen (API de Anthropic, JSON campo por campo)
                     2. Validación con Zod
-                    3. Guarda en DynamoDB (status: PROCESSED)
-                    4. Si falla → status: FAILED + mensaje a SQS DLQ
+                    3. Lambda save-extraction: guarda lo leído (status: REVIEW, solo si sigue PENDING)
+                    4. Si falla → status: FAILED (+ mensaje a SQS DLQ si el error es inesperado)
+                                        │
+                  Usuario revisa junto a la foto y confirma ──► POST /expenses/{id}/confirm (status: PROCESSED)
 
    EventBridge Scheduler (mensual) ──► Lambda resumen ──► SES
 ```
@@ -85,8 +87,19 @@ Next.js (S3 + CloudFront)
 |---|---|---|
 | Recibo/gasto | `USER#<userId>` | `RECEIPT#<receiptId>` |
 
-Atributos: `merchant`, `total`, `currency`, `date`, `category`, `imageKey`, `status` (`PENDING` / `PROCESSED` / `FAILED`), `createdAt`.
-GSI opcional para consultar por usuario y mes: `GSI1PK = USER#<userId>`, `GSI1SK = DATE#<yyyy-mm-dd>`.
+Atributos: `merchant`, `total`, `currency`, `date`, `category`, `imageKey`, `status`, `createdAt`.
+GSI para consultar por usuario y mes: `GSI1PK = USER#<userId>`, `GSI1SK = DATE#<yyyy-mm-dd>`.
+
+Estados (`status`, unión discriminada en `contracts`):
+
+| Estado | Significa | Quién lo escribe |
+|---|---|---|
+| `PENDING` | Foto subida, la IA aún no la lee | `POST /receipts` |
+| `REVIEW` | La IA leyó lo que pudo (campos opcionales); falta confirmación | Workflow, solo desde `PENDING` |
+| `PROCESSED` | Gasto completo y confirmado; el único que suma en los totales | `POST /expenses` (manual), `POST /expenses/{id}/confirm` desde `REVIEW`/`FAILED`; `PATCH` solo lo edita |
+| `FAILED` | No es un recibo o hubo un error; se completa a mano desde la foto | Workflow, solo desde `PENDING` |
+
+Toda escritura lleva una condición sobre `status`; `ReturnValuesOnConditionCheckFailure: 'ALL_OLD'` distingue 404 de 409.
 
 ## Estructura del repositorio
 

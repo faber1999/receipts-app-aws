@@ -11,10 +11,12 @@ The package exports TypeScript source directly (`exports: ./src/index.ts`), with
 | Export | Describes |
 |---|---|
 | `expenseSchema` / `Expense` | An expense: a discriminated union on `status` |
-| `processedExpenseSchema` / `ProcessedExpense` | `status: 'PROCESSED'`, with merchant, total, currency (ISO 4217), category and date |
+| `processedExpenseSchema` / `ProcessedExpense` | `status: 'PROCESSED'`: a complete, confirmed expense with merchant, total, currency (ISO 4217), category and date |
+| `reviewExpenseSchema` / `ReviewExpense` | `status: 'REVIEW'`: what the AI read, waiting for the person. Merchant, total, currency and category are each optional; `date` is the receipt date when read, otherwise the upload date |
 | `unprocessedExpenseSchema` / `UnprocessedExpense` | `status: 'PENDING' \| 'FAILED'`: an uploaded receipt with only `imageKey`, the upload date and `createdAt` |
-| `createExpenseInputSchema` | Body of `POST /expenses` |
-| `updateExpenseInputSchema` | Body of `PATCH /expenses/{id}` (a non-empty subset of the editable fields) |
+| `expenseStatusSchema` / `ExpenseStatus` | `PENDING`, `REVIEW`, `PROCESSED`, `FAILED` |
+| `createExpenseInputSchema` | Body of `POST /expenses` and of `POST /expenses/{id}/confirm` (every field required) |
+| `updateExpenseInputSchema` | Body of `PATCH /expenses/{id}` (a non-empty subset of the editable fields; `PROCESSED` expenses only) |
 | `listExpensesQuerySchema` | Query of `GET /expenses` (`month=YYYY-MM`) |
 | `listExpensesResponseSchema` | Response of `GET /expenses` |
 | `EXPENSE_CATEGORIES`, `expenseCategorySchema` | Category codes. The web translates them; they are stored in English. |
@@ -31,9 +33,16 @@ The package exports TypeScript source directly (`exports: ./src/index.ts`), with
 
 | Export | Describes |
 |---|---|
-| `receiptExtractionSchema` / `ReceiptExtraction` | What the AI returns for a receipt photo: `expense` (the same fields as a manual entry, `createExpenseInputSchema`) or `null` with an `unreadableReason` |
+| `extractedExpenseSchema` / `ExtractedExpense` | The fields of a manual entry (`createExpenseInputSchema`), each one `nullable`: `null` when the AI couldn't read it with confidence |
+| `receiptExtractionSchema` / `ReceiptExtraction` | What the AI returns for a receipt photo: `expense` (an `ExtractedExpense`), or `null` with an `unreadableReason` when the image is not a receipt |
 
-The API passes this schema to Claude as a structured output. Constraints the model API doesn't support (the currency regex, string lengths, `nonnegative`) are removed from what is sent and checked by Zod on the response.
+The API passes `receiptExtractionSchema` to Claude as a structured output. Constraints the model API doesn't support (the currency regex, string lengths, `nonnegative`) are removed from what is sent and checked by Zod on the response.
+
+### `receipts/receipt-photo.ts`
+
+| Export | Describes |
+|---|---|
+| `receiptPhotoResponseSchema` / `ReceiptPhotoResponse` | Response of `GET /expenses/{id}/receipt`: a presigned `url` and its `expiresAt` |
 
 ## Usage
 
@@ -43,7 +52,9 @@ import { type Expense, expenseSchema } from '@receipts-app/contracts';
 const expense: Expense = expenseSchema.parse(json);
 
 if (expense.status === 'PROCESSED') {
-  expense.total; // only available once the receipt has been processed
+  expense.total; // always present once the expense is confirmed
+} else if (expense.status === 'REVIEW') {
+  expense.total; // number | undefined: the AI may not have read it
 }
 ```
 
