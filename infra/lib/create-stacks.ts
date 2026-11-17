@@ -50,8 +50,11 @@ export function createStacks(app: App, env: Environment, options: StacksOptions 
   if (!options.senderEmail) {
     throw new Error('SENDER_EMAIL is required: the monthly summary needs a verified SES sender');
   }
+
   const notifications = new NotificationsStack(app, 'NotificationsStack', {
     env,
+    table: data.table,
+    userPool: auth.userPool,
     senderEmail: options.senderEmail,
   });
 

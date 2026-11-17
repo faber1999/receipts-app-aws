@@ -69,6 +69,7 @@ describe('DataStack', () => {
 describe.each([
   ['ApiStack', api],
   ['ProcessingStack', processing],
+  ['NotificationsStack', notifications],
 ])('%s Lambdas', (_stack, template) => {
   it('run on Node.js 24 and arm64', () => {
     const functions = Object.values(template.findResources('AWS::Lambda::Function'));
@@ -213,5 +214,21 @@ describe('NotificationsStack', () => {
     notifications.hasResourceProperties('AWS::SES::EmailIdentity', {
       EmailIdentity: 'summary@example.com',
     });
+  });
+
+  it('sends the summary at 8:00 Bogotá time on the 1st of each month', () => {
+    notifications.hasResourceProperties('AWS::Scheduler::Schedule', {
+      ScheduleExpression: 'cron(0 8 1 * ? *)',
+      ScheduleExpressionTimezone: 'America/Bogota',
+      State: 'ENABLED',
+    });
+  });
+
+  it('only lists users and sends email from the verified sender', () => {
+    const actions = statementsOf(notifications).flatMap((statement) => [statement.Action].flat());
+
+    expect(actions).toContain('cognito-idp:ListUsers');
+    expect(actions.filter((action) => action.startsWith('cognito-idp:'))).toEqual(['cognito-idp:ListUsers']);
+    expect(actions.filter((action) => action.startsWith('ses:')).sort()).toEqual(['ses:SendEmail', 'ses:SendRawEmail']);
   });
 });
