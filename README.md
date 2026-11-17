@@ -16,7 +16,7 @@ The domain is deliberately small. The interesting part is the AWS architecture, 
 | AI extraction of merchant, total, date and category (Claude Haiku 5.5), field by field | ✅ Done |
 | Review what the AI read next to the photo, fill in the gaps and confirm | ✅ Done |
 | View a receipt photo; deleting an expense deletes its photo | ✅ Done |
-| Monthly summary by email | 🔲 Planned |
+| Monthly summary by email: totals per currency and category, plus receipts waiting for review | ✅ Done |
 
 The UI is bilingual (English by default, Spanish) and follows WCAG 2.2 AA.
 
@@ -35,25 +35,33 @@ flowchart TB
   sfn["<b>Step Functions</b><br/>Extract and save"]
   ai["<b>Anthropic API</b><br/>Claude Haiku 5.5"]
   dlq["<b>SQS DLQ</b><br/>Unexpected errors"]
+  alarm["<b>CloudWatch alarm</b><br/>Email via SNS"]
+  scheduler["<b>EventBridge Scheduler</b><br/>1st of the month"]
+  summary["<b>Lambda summary</b><br/>Totals per user"]
+  ses["<b>SES</b><br/>Monthly email"]
 
   browser --> cf & cognito & apigw & receipts
   apigw --> api --> ddb
   receipts --> eb --> sfn
   sfn --> ddb
   sfn --> ai
-  sfn -.-> dlq
+  sfn -.-> dlq -.-> alarm
+  scheduler --> summary
+  summary --> cognito
+  summary --> ddb
+  summary --> ses
 
   classDef request fill:#0f6e56,stroke:#5dcaa5,color:#e1f5ee
   classDef async fill:#185fa5,stroke:#85b7eb,color:#e6f1fb
   classDef outside fill:#5f5e5a,stroke:#b4b2a9,color:#f1efe8
   classDef attention fill:#993c1d,stroke:#f0997b,color:#faece7
   class cf,cognito,apigw,receipts,api,ddb request
-  class eb,sfn async
+  class eb,sfn,scheduler,summary,ses async
   class browser,ai outside
-  class dlq attention
+  class dlq,alarm attention
 ```
 
-Green is the request path, blue the asynchronous processing, gray what runs outside AWS, and red what needs the developer's attention.
+Green is the request path, blue the asynchronous and scheduled work, gray what runs outside AWS, and red what needs the developer's attention.
 
 ### Receipt lifecycle
 
@@ -105,11 +113,37 @@ The `extract-receipt` Lambda sends the receipt photo to **Claude Haiku 5.5** thr
 4. Lambdas validate all input with the shared Zod contracts and read and write a single DynamoDB table. Expenses are listed per month through a GSI with paginated queries.
 5. Receipt photos go straight from the browser to S3 with a presigned POST, whose policy (type and size limit) S3 itself enforces. They are viewed the same way, with a 5-minute presigned GET from `GET /expenses/{id}/receipt`; the bucket stays private.
 
+### Monthly summary
+
+EventBridge Scheduler invokes the `send-monthly-summaries` Lambda at 8:00 Bogotá time on the 1st of each month (Scheduler supports time zones; EventBridge rules only run on UTC). For each enabled, confirmed Cognito user it:
+
+1. queries last month's expenses through `GSI1`, like `GET /expenses`
+2. adds up the `PROCESSED` ones per currency and category (amounts in different currencies are never added together) and counts the receipts still in `REVIEW` or `FAILED`
+3. writes an idempotency marker (`SUMMARY#yyyy-mm`) with `attribute_not_exists`, then sends a plain-text email through SES
+
+Scheduler and Lambda deliver at least once, so a retry finds the marker and doesn't email anyone twice. If SES fails, the marker is deleted so the retry can send it. People with nothing in the month get no email.
+
+A manual invocation can pass `{ "month": "YYYY-MM" }` to summarize another month; delete the marker it leaves if that month will be summarized again by the schedule.
+
+### Resilience
+
+| Concern | How it is handled |
+|---|---|
+| Duplicate S3 events, or an expense deleted while it is read | Every workflow write is conditioned on `status = PENDING` |
+| Transient Lambda and model errors | Step Functions retries Lambda service errors; the Anthropic SDK retries network errors and 429s |
+| Unexpected processing errors | The receipt is marked `FAILED` (the person can still complete it) and the error goes to an SQS dead-letter queue |
+| Nobody looking at the DLQ | A CloudWatch alarm on `ApproximateNumberOfMessagesVisible > 0` emails the developer through SNS, and again when the queue is empty |
+| Uploads that never arrive | `POST /receipts` gives the `PENDING` expense an `expiresAt` one day ahead and the table's TTL deletes it; leaving `PENDING` removes the attribute |
+| Summary retries | The `SUMMARY#yyyy-mm` marker, which the TTL also removes after 90 days |
+
 ### Data model (single table)
 
 | Item | PK | SK | GSI1PK | GSI1SK |
 |---|---|---|---|---|
 | Expense / receipt | `USER#<userId>` | `RECEIPT#<id>` | `USER#<userId>` | `DATE#<yyyy-mm-dd>` |
+| Monthly summary sent | `USER#<userId>` | `SUMMARY#<yyyy-mm>` | — | — |
+
+The table's TTL attribute is `expiresAt` (epoch seconds), set on `PENDING` expenses and on summary markers. Summary markers have no `GSI1` keys, so they never appear in the monthly listing.
 
 An expense is a discriminated union on `status`:
 
@@ -175,10 +209,17 @@ $key = Read-Host "Anthropic API key" -MaskInput
 aws ssm put-parameter --name /receipts-app/anthropic-api-key --type SecureString --value $key
 ```
 
+The infrastructure reads two email addresses from `infra/.env` (see `infra/.env.example`), which is not committed:
+
+| Variable | Used for |
+|---|---|
+| `SENDER_EMAIL` | Required. Sender of the monthly summary, verified in SES on the first deploy (open the link AWS emails you). While SES is in the sandbox, recipients must be verified too. |
+| `ALARM_EMAIL` | Optional. Receives the dead-letter queue alarm; confirm the SNS subscription from the email. A deploy without it removes the subscription. |
+
 Then, from `infra/`:
 
 ```bash
-pnpm exec cdk deploy AuthStack DataStack ApiStack ProcessingStack
+pnpm exec cdk deploy AuthStack DataStack ApiStack ProcessingStack NotificationsStack
 ```
 
 Copy the stack outputs into `apps/web/.env.local` (see `apps/web/.env.example`), then build the site and deploy it:
@@ -214,16 +255,17 @@ Run from the repository root:
 
 ## Quality and CI
 
-- **Unit tests** cover the pure logic: DynamoDB key mapping and update expressions (including what an extraction saves), receipt keys, money formatting, month logic, the client cache and polling, photo resizing, review helpers, form schemas.
+- **Unit tests** cover the pure logic: DynamoDB key mapping and update expressions (including what an extraction saves and that it removes the expiry), receipt keys, the monthly summary (per-currency totals, review count, email text), money formatting, month logic, the client cache and polling, photo resizing, review helpers, form schemas.
 - **Infrastructure tests** turn the project rules into checks:
   - every API route requires the JWT authorizer, and the receipt routes exist
-  - no IAM statement grants `*`, in the API or the processing workflow
+  - no IAM statement grants `*`, in the API, the processing workflow or the summary
   - buckets are private
-  - the table is on-demand
+  - the table is on-demand and expires items by `expiresAt`
   - Lambdas run on Node.js 24 and arm64
   - log groups keep one week of logs
-  - the workflow is Standard, starts only for `receipts/` uploads, only writes with `UpdateItem` and only reads the Anthropic key from SSM
-  - the dead-letter queue is encrypted and keeps messages for 14 days
+  - the workflow is Standard, starts only for `receipts/` uploads, only writes with `UpdateItem` (removing the expiry when it marks a failure) and only reads the Anthropic key from SSM
+  - the dead-letter queue is encrypted, keeps messages for 14 days, and alarms by email on its first message
+  - the summary runs on the 1st at 8:00 Bogotá time, only lists users and only sends from the verified sender
   - CloudFront sends the security headers
 - **Smoke test:** exercises the deployed API end to end, including a real presigned upload to S3 and checks that S3 rejects a mismatched file type.
 - **GitHub Actions** (`.github/workflows/ci.yml`) runs lint, type-check, the web build and all tests on every push and pull request, on Linux.
@@ -233,14 +275,16 @@ Run from the repository root:
 Every push to `main` that passes the checks is deployed by the `deploy` job of the same workflow:
 
 1. It runs only after `verify` succeeds, only for pushes to `main` (never for pull requests), and one at a time (`concurrency`).
-2. It uses the GitHub environment `production`, which only `main` can deploy to. The environment holds the AWS credentials as secrets and the public `NEXT_PUBLIC_*` values as variables.
+2. It uses the GitHub environment `production`, which only `main` can deploy to. The environment holds the AWS credentials as secrets, and the public `NEXT_PUBLIC_*` values, `SENDER_EMAIL` and `ALARM_EMAIL` as variables.
 3. It builds the site with the real values and runs `cdk deploy --all`.
 
 AWS access goes through the `github-deployer` IAM user (`CiStack`). Its only permission is `sts:AssumeRole` on the CDK bootstrap roles, so the key alone can't read or change anything: every change goes through CloudFormation. An access key is used instead of OIDC because of the account's SCP (see [Account constraints](#account-constraints)).
 
 ## Security
 
-- Least-privilege IAM through CDK `grant*` methods: for example, the list Lambda can only read, the upload Lambda can only write under `receipts/*`, the photo and save Lambdas get a single DynamoDB action (`GetItem`, `UpdateItem`), and the workflow can't read, scan or delete items.
+- Least-privilege IAM through CDK `grant*` methods: for example, the list Lambda can only read, the upload Lambda can only write under `receipts/*`, the photo and save Lambdas get a single DynamoDB action (`GetItem`, `UpdateItem`), the workflow can't read, scan or delete items, and the summary Lambda can only list users and send from the verified SES identity.
+- Resource policies that AWS services use are scoped to the caller: the alarm topic only accepts `sns:Publish` from this alarm (`aws:SourceArn`, `aws:SourceAccount`), and the Scheduler role can only be assumed by this account's schedules.
+- Email addresses (users, sender, alarm) never appear in the code, the repository or the logs.
 - Receipt photos stay in a private bucket and are only reachable through 5-minute presigned URLs, signed for expenses looked up with the caller's own key. Deleting an expense deletes its photo.
 - Cognito:
   - access token of 1 hour, refresh token of 7 days, token revocation on sign-out
@@ -253,7 +297,7 @@ AWS access goes through the `github-deployer` IAM user (`CiStack`). Its only per
 
 ## Costs
 
-Everything runs on serverless, pay-per-use services: CloudFront, S3, Lambda, API Gateway HTTP API, DynamoDB on-demand, Cognito Lite, EventBridge, Step Functions Standard (4,000 free state transitions a month, about 5 per receipt), SQS and SSM Standard parameters. At personal-use volumes the project stays within the free tier, or a few cents a month. The AI extraction costs about $0.0004 per receipt on the Anthropic API, under a monthly spend limit. There are no NAT gateways, EC2 instances or databases with hourly cost. Every stack can be removed with `cdk destroy`.
+Everything runs on serverless, pay-per-use services: CloudFront, S3, Lambda, API Gateway HTTP API, DynamoDB on-demand, Cognito Lite, EventBridge and EventBridge Scheduler, Step Functions Standard (4,000 free state transitions a month, about 5 per receipt), SQS, SNS, SES ($0.10 per 1,000 emails, one per user a month), one CloudWatch alarm (10 are free) and SSM Standard parameters. DynamoDB TTL deletes are free. At personal-use volumes the project stays within the free tier, or a few cents a month. The AI extraction costs about $0.0004 per receipt on the Anthropic API, under a monthly spend limit. There are no NAT gateways, EC2 instances or databases with hourly cost. Every stack can be removed with `cdk destroy`.
 
 ## Account constraints
 
@@ -264,6 +308,7 @@ The project runs on an AWS Free plan account, whose organization service control
 | Only `us-east-2` is allowed | Everything is deployed there. No custom domain, because the ACM certificate for CloudFront must live in `us-east-1`. |
 | Bedrock inference quotas are 0 | AWS Support declined the increase until the account has more usage. AI extraction uses the Anthropic API instead (see [AI extraction](#ai-extraction)). |
 | Textract is denied by an SCP | It can't be used as an alternative extractor. |
+| SES is in the sandbox | The monthly summary is only delivered to verified addresses (200 emails a day, 1 per second). A rejected address is logged and skipped. Production access is not requested for this portfolio project. |
 | IAM OIDC providers are denied | GitHub Actions can't use OIDC. It deploys with the access key of an IAM user that can only assume the CDK bootstrap roles, kept in a protected environment. This is a temporary exception: once the account allows OIDC, the key will be replaced by an OIDC role and deleted. |
 
 ## Roadmap
@@ -271,5 +316,5 @@ The project runs on an AWS Free plan account, whose organization service control
 1. ✅ **Base:** monorepo, CDK bootstrap, Cognito, site on CloudFront
 2. ✅ **API:** expenses CRUD with API Gateway, Lambda and DynamoDB
 3. ✅ **Processing:** presigned uploads, EventBridge and Step Functions workflow, AI extraction with Claude, review and confirmation, photo viewing and deletion
-4. 🚧 **Resilience and notifications:** DLQ, retries and idempotent writes ✅; cleanup jobs (TTL for abandoned uploads, unconfirmed users), DLQ alarm and monthly email summary with SES pending
-5. 🚧 **Operations:** tests, CI and continuous deployment ✅; observability and alarms pending
+4. ✅ **Resilience and notifications:** DLQ and its email alarm, retries, idempotent writes, TTL for abandoned uploads, monthly email summary with Scheduler and SES
+5. 🚧 **Operations:** tests, CI and continuous deployment ✅; observability (Powertools Metrics and Tracer, dashboards, more alarms) pending

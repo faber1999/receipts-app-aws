@@ -14,7 +14,7 @@ Every route requires a Cognito **access token** (`Authorization: Bearer <token>`
 | `POST /expenses/{id}/confirm` | `expenses/handlers/confirm-expense.ts` | `200` with the `PROCESSED` expense. Takes every field and confirms a `REVIEW` or `FAILED` expense: `409` in any other status, `404` if it doesn't exist |
 | `DELETE /expenses/{id}` | `expenses/handlers/delete-expense.ts` | `204`, and its photo is deleted from S3; `404` if it doesn't exist or isn't yours |
 | `GET /expenses/{id}/receipt` | `receipts/handlers/get-receipt-photo.ts` | `200` with a presigned GET URL to the photo, valid for 5 minutes; `404` if the expense doesn't exist or has no photo |
-| `POST /receipts` | `receipts/handlers/create-receipt-upload.ts` | `201` with a `PENDING` expense and a presigned POST to upload the photo to S3 |
+| `POST /receipts` | `receipts/handlers/create-receipt-upload.ts` | `201` with a `PENDING` expense and a presigned POST to upload the photo to S3. The item gets `expiresAt` one day ahead, so the table's TTL deletes it if the photo never arrives |
 
 Invalid input returns `400` with the Zod field errors.
 
@@ -29,6 +29,8 @@ Every write is conditioned on the expense status, so the API and the workflow ne
 | `PATCH /expenses/{id}` | `PROCESSED` |
 
 On a failed condition, `ReturnValuesOnConditionCheckFailure: 'ALL_OLD'` returns the current item inside the error, so the handler answers `404` (no item) or `409` (wrong status) without reading first.
+
+Leaving `PENDING` (`save-extraction` or `MarkFailed`) also runs `REMOVE expiresAt`, so the TTL only ever deletes abandoned uploads. The attribute is called `expiresAt` because `TTL` is a DynamoDB reserved word, and `fromItem` drops it (Zod strips unknown keys), so it never reaches the API.
 
 ## Receipt processing
 
@@ -54,6 +56,25 @@ Two Lambdas are not HTTP handlers: the processing workflow (Step Functions) invo
 The Anthropic API key is read from the SSM `SecureString` named by `ANTHROPIC_API_KEY_PARAMETER`, through Powertools Parameters with a 5-minute cache, so a rotated key is picked up without a redeploy. Logs never include the merchant or the total.
 
 Bedrock was the original choice; see the root README for why the Anthropic API is used instead.
+
+## Monthly summary
+
+**`summaries/handlers/send-monthly-summaries.ts`** runs on a schedule (the 1st of each month) and is not an HTTP handler. The month comes from the input (`{ "month": "YYYY-MM" }`) or defaults to the previous month.
+
+For each enabled, confirmed Cognito user with a verified email (`ListUsers`; the user id is the `sub`, as in the API):
+
+1. It queries the month through `GSI1` and builds the summary with `summaries/monthly-summary.ts`: `PROCESSED` totals per currency and category, and a count of `REVIEW` and `FAILED` receipts. `PENDING` receipts are left out. An empty month sends nothing.
+2. It writes `USER#<sub>` / `SUMMARY#<yyyy-mm>` with `attribute_not_exists(PK)`. If the marker exists, the summary was already sent and the user is skipped.
+3. It sends the plain-text email through SES. If SES fails, it deletes the marker so a retry can send it.
+
+| Outcome | Counted as | Run |
+|---|---|---|
+| Sent | `sent` | — |
+| Empty month, or marker already there | `skipped` | — |
+| SES `MessageRejected` (unverified address in the sandbox) | `skipped`, logged with the error name only, since the message contains the address | Retrying won't help |
+| Anything else | `failed` | The run throws at the end so it is retried; the markers protect people who already got it |
+
+Email addresses are never logged, only the `sub`.
 
 ## Design
 
@@ -85,6 +106,9 @@ src/
 │  ├─ receipt-key.ts             Builds and parses receipts/<userId>/<id>.<ext>
 │  ├─ receipt-extractor.ts       Claude extraction behind the ReceiptExtractor type
 │  └─ extraction-update.ts       What an extraction saves: the fields read, status REVIEW
+├─ summaries/
+│  ├─ handlers/                  The scheduled monthly summary Lambda
+│  └─ monthly-summary.ts         Totals per currency and category, and the email text
 └─ shared/                       auth (JWT sub), db client, env, HTTP helpers
 scripts/smoke-test.ts            End-to-end test against the deployed API
 scripts/upload-receipt.ts        Uploads a real photo through the API and waits for the workflow

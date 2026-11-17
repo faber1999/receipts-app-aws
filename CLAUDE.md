@@ -51,7 +51,9 @@ Next.js (S3 + CloudFront)
                                         │
                   Usuario revisa junto a la foto y confirma ──► POST /expenses/{id}/confirm (status: PROCESSED)
 
-   EventBridge Scheduler (mensual) ──► Lambda resumen ──► SES
+   SQS DLQ ──► CloudWatch alarm ──► SNS (email al desarrollador, ALARM_EMAIL)
+
+   EventBridge Scheduler (día 1, 8:00 Bogotá) ──► Lambda resumen ──► SES (sandbox; remitente SENDER_EMAIL)
 ```
 
 ## Servicios AWS y su propósito
@@ -86,9 +88,11 @@ Next.js (S3 + CloudFront)
 | Entidad | PK | SK |
 |---|---|---|
 | Recibo/gasto | `USER#<userId>` | `RECEIPT#<receiptId>` |
+| Marcador de resumen enviado (idempotencia) | `USER#<userId>` | `SUMMARY#<yyyy-mm>` |
 
 Atributos: `merchant`, `total`, `currency`, `date`, `category`, `imageKey`, `status`, `createdAt`.
-GSI para consultar por usuario y mes: `GSI1PK = USER#<userId>`, `GSI1SK = DATE#<yyyy-mm-dd>`.
+GSI para consultar por usuario y mes: `GSI1PK = USER#<userId>`, `GSI1SK = DATE#<yyyy-mm-dd>` (los marcadores no lo tienen).
+TTL en `expiresAt` (epoch en segundos; `TTL` es palabra reservada): `POST /receipts` lo pone a +1 día y se quita al salir de `PENDING`; los marcadores de resumen viven 90 días.
 
 Estados (`status`, unión discriminada en `contracts`):
 
@@ -128,7 +132,7 @@ Stacks CDK sugeridos: `AuthStack`, `DataStack`, `ApiStack`, `ProcessingStack`, `
 1. **Base:** monorepo, CDK bootstrap, Cognito, front en CloudFront
 2. **API:** CRUD de gastos con API Gateway + Lambda + DynamoDB
 3. **Procesamiento:** presigned URLs, EventBridge, Step Functions, extracción con IA (Claude vía API de Anthropic)
-4. **Resiliencia y notificaciones:** DLQ, reintentos, idempotencia, resumen mensual con SES
+4. **Resiliencia y notificaciones:** DLQ, reintentos, idempotencia, resumen mensual con SES ✅ (incluye alarma de la DLQ y TTL de `PENDING`; limpieza de usuarios no confirmados queda opcional)
 5. **Operación:** CI/CD con GitHub Actions + OIDC, observabilidad, alarmas, README con diagrama y estimación de costos
 
 ## Reglas de costos (obligatorias)
