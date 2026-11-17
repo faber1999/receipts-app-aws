@@ -23,38 +23,60 @@ The UI is bilingual (English by default, Spanish) and follows WCAG 2.2 AA.
 ## Architecture
 
 ```mermaid
-flowchart LR
-  user([Browser]) --> cf[CloudFront<br/>CSP and security headers]
-  cf --> site[(S3: static site)]
-  user -- sign up / sign in --> cognito[Cognito User Pool]
-  user -- JWT --> apigw[API Gateway HTTP API<br/>JWT authorizer]
-  apigw --> lambdas[Lambda handlers<br/>Node.js 24, arm64]
-  lambdas --> ddb[(DynamoDB<br/>single table + GSI1)]
-  lambdas -- presigned POST / GET --> user
-  user -- photo upload / view --> receipts[(S3: receipts)]
-  receipts -. Object Created .-> eb[EventBridge]
-  eb -.-> sfn[Step Functions]
-  sfn -.-> extract[Lambda: extract-receipt]
-  extract -.-> ai[Anthropic API<br/>Claude Haiku 5.5]
-  extract -. API key .-> ssm[SSM Parameter Store]
-  sfn -.-> save[Lambda: save-extraction]
-  save -.-> ddb
-  sfn -. on failure .-> dlq[SQS DLQ]
+flowchart TB
+  browser["<b>Browser</b><br/>Next.js app"]
+  cf["<b>CloudFront</b><br/>Static site (S3)"]
+  cognito["<b>Cognito</b><br/>Sign in, JWT"]
+  apigw["<b>API Gateway</b><br/>HTTP API + JWT"]
+  receipts["<b>S3 receipts</b><br/>Presigned POST / GET"]
+  api["<b>Lambda API</b><br/>One per route"]
+  ddb[("<b>DynamoDB</b><br/>Single table")]
+  eb["<b>EventBridge</b><br/>Object Created"]
+  sfn["<b>Step Functions</b><br/>Extract and save"]
+  ai["<b>Anthropic API</b><br/>Claude Haiku 5.5"]
+  dlq["<b>SQS DLQ</b><br/>Unexpected errors"]
+
+  browser --> cf & cognito & apigw & receipts
+  apigw --> api --> ddb
+  receipts --> eb --> sfn
+  sfn --> ddb
+  sfn --> ai
+  sfn -.-> dlq
+
+  classDef request fill:#0f6e56,stroke:#5dcaa5,color:#e1f5ee
+  classDef async fill:#185fa5,stroke:#85b7eb,color:#e6f1fb
+  classDef outside fill:#5f5e5a,stroke:#b4b2a9,color:#f1efe8
+  classDef attention fill:#993c1d,stroke:#f0997b,color:#faece7
+  class cf,cognito,apigw,receipts,api,ddb request
+  class eb,sfn async
+  class browser,ai outside
+  class dlq attention
 ```
 
-Dotted lines are the asynchronous processing pipeline.
+Green is the request path, blue the asynchronous processing, gray what runs outside AWS, and red what needs the developer's attention.
 
 ### Receipt lifecycle
 
 ```mermaid
-stateDiagram-v2
-  [*] --> PENDING: POST /receipts
-  PENDING --> REVIEW: the AI read it (all fields or some)
-  PENDING --> FAILED: not a receipt, or an unexpected error
-  REVIEW --> PROCESSED: the person confirms
-  FAILED --> PROCESSED: the person fills it in from the photo
-  PROCESSED --> PROCESSED: edits (PATCH)
+flowchart TB
+  read["<b>Read event</b><br/>Photo uploaded"] --> extract["<b>Extract receipt</b><br/>Claude reads each field"]
+  extract -- read something --> save["<b>Save extraction</b><br/>Only what it read"]
+  save --> review["<b>REVIEW</b><br/>All or some fields"]
+  extract -- "not a receipt, or an error" --> failed["<b>FAILED</b><br/>Nothing was read"]
+  failed -. only unexpected errors .-> dlq["<b>SQS DLQ</b><br/>Copy for debugging"]
+  review -- fills the gaps --> person["<b>Person reviews the photo</b><br/>Completes what's missing and confirms"]
+  failed -- types it all from the photo --> person
+  person --> processed["<b>PROCESSED</b><br/>Counts in totals"]
+
+  classDef auto fill:#5f5e5a,stroke:#b4b2a9,color:#f1efe8
+  classDef human fill:#0f6e56,stroke:#5dcaa5,color:#e1f5ee
+  classDef attention fill:#993c1d,stroke:#f0997b,color:#faece7
+  class read,extract,save auto
+  class review,failed,person,processed human
+  class dlq attention
 ```
+
+Gray steps are automated, green ones are statuses and the person's part, and red needs the developer's attention. `PROCESSED` expenses can still be edited (`PATCH`).
 
 1. `POST /receipts` creates a `PENDING` expense and a presigned POST. The browser resizes the photo (longest edge 1568 px, JPEG) and uploads it straight to S3.
 2. S3 emits `Object Created` to EventBridge, which starts a Step Functions (Standard, JSONata) workflow:
