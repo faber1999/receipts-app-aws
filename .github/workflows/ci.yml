@@ -91,4 +91,6 @@ jobs:
         env:
           # Without it the alarm email subscription would be removed.
           ALARM_EMAIL: ${{ vars.ALARM_EMAIL }}
+          # Verified SES sender of the monthly summary (required).
+          SENDER_EMAIL: ${{ vars.SENDER_EMAIL }}
         run: pnpm exec cdk deploy --all --require-approval never

@@ -7,5 +7,5 @@ if (existsSync('.env')) process.loadEnvFile('.env');
 createStacks(
   new App(),
   { account: process.env.CDK_DEFAULT_ACCOUNT, region: 'us-east-2' },
-  { alarmEmail: process.env.ALARM_EMAIL },
+  { alarmEmail: process.env.ALARM_EMAIL, senderEmail: process.env.SENDER_EMAIL },
 );

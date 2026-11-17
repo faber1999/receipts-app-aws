@@ -7,12 +7,13 @@ import { createStacks } from '../lib/create-stacks';
 const stacks = createStacks(
   new App(),
   { account: '123456789012', region: 'us-east-2' },
-  { alarmEmail: 'alarms@example.com' },
+  { alarmEmail: 'alarms@example.com', senderEmail: 'summary@example.com' },
 );
 const data = Template.fromStack(stacks.data);
 const api = Template.fromStack(stacks.api);
 const processing = Template.fromStack(stacks.processing);
 const web = Template.fromStack(stacks.web);
+const notifications = Template.fromStack(stacks.notifications);
 
 const privateBucket = {
   PublicAccessBlockConfiguration: {
@@ -203,6 +204,14 @@ describe('WebStack', () => {
           StrictTransportSecurity: Match.objectLike({ AccessControlMaxAgeSec: 31_536_000 }),
         }),
       }),
+    });
+  });
+});
+
+describe('NotificationsStack', () => {
+  it('verifies the summary sender in SES', () => {
+    notifications.hasResourceProperties('AWS::SES::EmailIdentity', {
+      EmailIdentity: 'summary@example.com',
     });
   });
 });
