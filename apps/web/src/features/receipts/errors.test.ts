@@ -22,6 +22,16 @@ describe('getUploadErrorKey', () => {
     expect(getUploadErrorKey(new ApiError(401, 'x'))).toBe('unauthorized');
     expect(getUploadErrorKey(new ApiError(500, 'x'))).toBe('apiFailed');
     expect(getUploadErrorKey(new ApiError(400, 'x'))).toBe('apiFailed');
+    expect(getUploadErrorKey(new ApiError(403, 'x'))).toBe('apiFailed');
+  });
+
+  it('reports a 429 as the upload limit, whatever the body says', () => {
+    expect(getUploadErrorKey(new ApiError(429, 'You can upload up to 20 receipts a day'))).toBe('uploadLimit');
+    expect(getUploadErrorKey(new ApiError(429, 'Too Many Requests'))).toBe('uploadLimit');
+  });
+
+  it('keeps a 429 from storage or the network on its own path', () => {
+    expect(getUploadErrorKey(new ReceiptStorageError(429))).toBe('rejected');
   });
 
   it('reports an S3 rejection', () => {

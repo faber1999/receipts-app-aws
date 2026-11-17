@@ -262,6 +262,7 @@ export const en = {
         tooLarge: 'This photo is too large to upload, even after resizing. Try another one.',
         unauthorized: 'Your session has expired. Sign in again to continue.',
         apiFailed: 'We couldn’t start the upload. Try again in a moment.',
+        uploadLimit: (max: number) => `You’ve reached the upload limit (${max} receipts a day). Try again later.`,
         rejected: 'The photo was rejected by storage. Try again, or use a different photo.',
         network: 'The upload didn’t go through. Check your connection and try again.',
         failed: 'Something went wrong with the upload. Try again.',

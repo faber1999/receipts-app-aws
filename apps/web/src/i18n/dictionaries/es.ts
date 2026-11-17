@@ -267,6 +267,7 @@ export const es: Dictionary = {
         tooLarge: 'Esta foto es demasiado grande para subirla, incluso reducida. Prueba con otra.',
         unauthorized: 'Tu sesión expiró. Inicia sesión de nuevo para continuar.',
         apiFailed: 'No pudimos iniciar la subida. Inténtalo de nuevo en un momento.',
+        uploadLimit: (max: number) => `Llegaste al límite de subidas (${max} recibos al día). Inténtalo más tarde.`,
         rejected: 'El almacenamiento rechazó la foto. Inténtalo de nuevo o usa otra foto.',
         network: 'La subida no se completó. Revisa tu conexión e inténtalo de nuevo.',
         failed: 'Algo salió mal con la subida. Inténtalo de nuevo.',

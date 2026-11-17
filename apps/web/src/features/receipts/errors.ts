@@ -19,7 +19,12 @@ export class ReceiptStorageError extends Error {
 /** Maps a failure anywhere in the upload (prepare, POST /receipts, S3) to a translated message key. */
 export function getUploadErrorKey(error: unknown): UploadErrorKey {
   if (error instanceof ReceiptImageError) return error.code;
-  if (error instanceof ApiError) return error.status === 401 ? 'unauthorized' : 'apiFailed';
+  if (error instanceof ApiError) {
+    if (error.status === 401) return 'unauthorized';
+    // Both the daily per-user quota and API Gateway throttling answer 429; one message covers them.
+    if (error.status === 429) return 'uploadLimit';
+    return 'apiFailed';
+  }
   if (error instanceof ReceiptStorageError) return 'rejected';
   // fetch rejects with a TypeError when the request never got a response (offline, DNS, CORS or CSP).
   if (error instanceof TypeError) return 'network';

@@ -1,5 +1,6 @@
 'use client';
 
+import { MAX_RECEIPT_UPLOADS_PER_DAY } from '@receipts-app/contracts';
 import { type ChangeEvent, type DragEvent, useEffect, useId, useRef, useState } from 'react';
 import { CameraIcon, ImageIcon, ReceiptIcon } from '@/components/icons';
 import { Button } from '@/components/ui/button';
@@ -122,6 +123,7 @@ function UploadReceiptPanel({ busy, setBusy, onCancel, onUpload }: UploadReceipt
   }
 
   const progress = phase === 'uploading' ? upload.uploading : upload.preparing;
+  const errorMessage = error ? upload.errors[error] : null;
 
   return (
     <>
@@ -196,7 +198,11 @@ function UploadReceiptPanel({ busy, setBusy, onCancel, onUpload }: UploadReceipt
           <span className="font-medium text-ink">{upload.tipLead}</span> {upload.tip}
         </p>
 
-        {error ? <FieldError role="alert">{upload.errors[error]}</FieldError> : null}
+        {errorMessage ? (
+          <FieldError role="alert">
+            {typeof errorMessage === 'function' ? errorMessage(MAX_RECEIPT_UPLOADS_PER_DAY) : errorMessage}
+          </FieldError>
+        ) : null}
 
         <input ref={cameraInput} type="file" accept={ACCEPT} capture="environment" hidden onChange={handlePicked} />
         <input ref={fileInput} type="file" accept={ACCEPT} hidden onChange={handlePicked} />
