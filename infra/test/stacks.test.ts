@@ -4,7 +4,11 @@ import { describe, expect, it } from 'vitest';
 import { createStacks } from '../lib/create-stacks';
 
 // A fixed account keeps synthesis offline: no AWS credentials or lookups needed.
-const stacks = createStacks(new App(), { account: '123456789012', region: 'us-east-2' });
+const stacks = createStacks(
+  new App(),
+  { account: '123456789012', region: 'us-east-2' },
+  { alarmEmail: 'alarms@example.com' },
+);
 const data = Template.fromStack(stacks.data);
 const api = Template.fromStack(stacks.api);
 const processing = Template.fromStack(stacks.processing);
@@ -116,6 +120,23 @@ describe('ProcessingStack', () => {
     processing.hasResourceProperties('AWS::SQS::Queue', {
       SqsManagedSseEnabled: true,
       MessageRetentionPeriod: 14 * 24 * 60 * 60,
+    });
+  });
+
+  it('alarms by email as soon as a message reaches the dead-letter queue', () => {
+    processing.hasResourceProperties('AWS::CloudWatch::Alarm', {
+      MetricName: 'ApproximateNumberOfMessagesVisible',
+      Namespace: 'AWS/SQS',
+      Statistic: 'Maximum',
+      Threshold: 0,
+      ComparisonOperator: 'GreaterThanThreshold',
+      TreatMissingData: 'notBreaching',
+      AlarmActions: [Match.anyValue()],
+      OKActions: [Match.anyValue()],
+    });
+    processing.hasResourceProperties('AWS::SNS::Subscription', {
+      Protocol: 'email',
+      Endpoint: 'alarms@example.com',
     });
   });
 

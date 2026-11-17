@@ -88,4 +88,7 @@ jobs:
 
       - name: Deploy all stacks
         working-directory: infra
+        env:
+          # Without it the alarm email subscription would be removed.
+          ALARM_EMAIL: ${{ vars.ALARM_EMAIL }}
         run: pnpm exec cdk deploy --all --require-approval never

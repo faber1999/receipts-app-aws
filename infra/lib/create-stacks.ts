@@ -17,8 +17,12 @@ export interface ReceiptsStacks {
   ci: CiStack;
 }
 
+export interface StacksOptions {
+  alarmEmail?: string;
+}
+
 /** Creates and wires every stack. Used by bin/app.ts and by the infra tests, so both see the same app. */
-export function createStacks(app: App, env: Environment): ReceiptsStacks {
+export function createStacks(app: App, env: Environment, options: StacksOptions = {}): ReceiptsStacks {
   Tags.of(app).add('project', 'receipts-app');
 
   const auth = new AuthStack(app, 'AuthStack', { env });
@@ -35,6 +39,7 @@ export function createStacks(app: App, env: Environment): ReceiptsStacks {
     env,
     table: data.table,
     receiptsBucket: data.receiptsBucket,
+    alarmEmail: options.alarmEmail,
   });
   const web = new WebStack(app, 'WebStack', { env, apiUrl: api.apiUrl, receiptsBucket: data.receiptsBucket });
   const ci = new CiStack(app, 'CiStack', { env });

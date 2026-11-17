@@ -1,5 +1,7 @@
 import { join } from 'node:path';
 import { Duration, RemovalPolicy, Stack, type StackProps } from 'aws-cdk-lib';
+import { Alarm, ComparisonOperator, TreatMissingData } from 'aws-cdk-lib/aws-cloudwatch';
+import { SnsAction } from 'aws-cdk-lib/aws-cloudwatch-actions';
 import type { ITableV2 } from 'aws-cdk-lib/aws-dynamodb';
 import { Match, Rule } from 'aws-cdk-lib/aws-events';
 import { SfnStateMachine } from 'aws-cdk-lib/aws-events-targets';
@@ -7,6 +9,8 @@ import { Architecture, Runtime } from 'aws-cdk-lib/aws-lambda';
 import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
 import { LogGroup, RetentionDays } from 'aws-cdk-lib/aws-logs';
 import type { IBucket } from 'aws-cdk-lib/aws-s3';
+import { Topic } from 'aws-cdk-lib/aws-sns';
+import { EmailSubscription } from 'aws-cdk-lib/aws-sns-subscriptions';
 import { Queue, QueueEncryption } from 'aws-cdk-lib/aws-sqs';
 import { StringParameter } from 'aws-cdk-lib/aws-ssm';
 import {
@@ -32,6 +36,8 @@ import type { Construct } from 'constructs';
 export interface ProcessingStackProps extends StackProps {
   table: ITableV2;
   receiptsBucket: IBucket;
+  /** Where alarms are emailed. Optional so tests and local synths don't need it. */
+  alarmEmail?: string;
 }
 
 const API_SRC_DIR = join(import.meta.dirname, '../../../services/api/src');
@@ -91,6 +97,28 @@ export class ProcessingStack extends Stack {
       retentionPeriod: Duration.days(14),
       removalPolicy: RemovalPolicy.DESTROY,
     });
+
+    const alarmTopic = new Topic(this, 'ProcessingAlarmTopic', {
+      displayName: 'Receipts App processing alarms',
+      enforceSSL: true,
+    });
+    if (props.alarmEmail) {
+      alarmTopic.addSubscription(new EmailSubscription(props.alarmEmail));
+    }
+
+    const deadLetterAlarm = new Alarm(this, 'DeadLetterQueueAlarm', {
+      alarmDescription: 'A receipt failed for an unexpected reason; check the processing DLQ',
+      metric: deadLetterQueue.metricApproximateNumberOfMessagesVisible({
+        period: Duration.minutes(5),
+        statistic: 'Maximum',
+      }),
+      threshold: 0,
+      comparisonOperator: ComparisonOperator.GREATER_THAN_THRESHOLD,
+      evaluationPeriods: 1,
+      treatMissingData: TreatMissingData.NOT_BREACHING,
+    });
+    deadLetterAlarm.addAlarmAction(new SnsAction(alarmTopic));
+    deadLetterAlarm.addOkAction(new SnsAction(alarmTopic));
 
     // --- Workflow --------------------------------------------------------------------------
     const receiptKey = {
