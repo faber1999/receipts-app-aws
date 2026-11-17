@@ -1,12 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { Logger } from '@aws-lambda-powertools/logger';
+import { ConditionalCheckFailedException } from '@aws-sdk/client-dynamodb';
 import { S3Client } from '@aws-sdk/client-s3';
-import { PutCommand } from '@aws-sdk/lib-dynamodb';
+import { PutCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
 import {
   type CreateReceiptUploadResponse,
   createReceiptUploadInputSchema,
   MAX_RECEIPT_BYTES,
+  MAX_RECEIPT_UPLOADS_PER_DAY,
   type UnprocessedExpense,
 } from '@receipts-app/contracts';
 import type { APIGatewayProxyEventV2WithJWTAuthorizer, APIGatewayProxyResultV2 } from 'aws-lambda';
@@ -17,6 +19,7 @@ import { db } from '../../shared/db';
 import { env } from '../../shared/env';
 import { json, parseJsonBody } from '../../shared/http';
 import { buildReceiptKey } from '../receipt-key';
+import { toUploadQuotaUpdate } from '../upload-quota';
 
 const logger = new Logger({ serviceName: 'expenses-api' });
 const s3 = new S3Client({});
@@ -36,6 +39,18 @@ export async function handler(event: APIGatewayProxyEventV2WithJWTAuthorizer): P
   const { contentType } = parsed.data;
   const id = randomUUID();
   const now = new Date();
+
+  // Each upload costs an AI extraction, so the daily quota is taken before anything is created.
+  try {
+    await db.send(new UpdateCommand({ TableName: env.TABLE_NAME, ...toUploadQuotaUpdate(userId, now) }));
+  } catch (error: unknown) {
+    if (error instanceof ConditionalCheckFailedException) {
+      logger.info('Daily upload limit reached');
+      return json(429, { message: `You can upload up to ${MAX_RECEIPT_UPLOADS_PER_DAY} receipts a day` });
+    }
+    throw error;
+  }
+
   const imageKey = buildReceiptKey({ userId, receiptId: id, contentType });
 
   const expense: UnprocessedExpense = {

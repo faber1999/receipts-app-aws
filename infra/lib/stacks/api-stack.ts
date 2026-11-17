@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { CfnOutput, Duration, RemovalPolicy, Stack, type StackProps } from 'aws-cdk-lib';
-import { CorsHttpMethod, HttpApi, HttpMethod } from 'aws-cdk-lib/aws-apigatewayv2';
+import { CfnStage, CorsHttpMethod, HttpApi, HttpMethod } from 'aws-cdk-lib/aws-apigatewayv2';
 import { HttpUserPoolAuthorizer } from 'aws-cdk-lib/aws-apigatewayv2-authorizers';
 import { HttpLambdaIntegration } from 'aws-cdk-lib/aws-apigatewayv2-integrations';
 import type { IUserPool, IUserPoolClient } from 'aws-cdk-lib/aws-cognito';
@@ -81,6 +81,17 @@ export class ApiStack extends Stack {
         maxAge: Duration.hours(1),
       },
     });
+
+    // HTTP APIs throttle per stage and route, not per client (usage plans are REST API only);
+    // the per-user daily quota lives in the upload Lambda.
+    const defaultStage = api.defaultStage?.node.defaultChild;
+    if (defaultStage instanceof CfnStage) {
+      defaultStage.defaultRouteSettings = { throttlingRateLimit: 10, throttlingBurstLimit: 20 };
+      // Each upload starts an AI extraction, so it gets a tighter limit.
+      defaultStage.routeSettings = {
+        'POST /receipts': { ThrottlingRateLimit: 1, ThrottlingBurstLimit: 3 },
+      };
+    }
 
     this.apiUrl = api.apiEndpoint;
 

@@ -6,6 +6,8 @@ export const RECEIPT_CONTENT_TYPES = ['image/jpeg', 'image/png'] as const;
 
 /** Upper bound for a receipt photo; enforced by the S3 POST policy, not just the client. */
 export const MAX_RECEIPT_BYTES = 10 * 1024 * 1024;
+/** Receipts one person can upload per day (UTC): protects the AI extraction budget. */
+export const MAX_RECEIPT_UPLOADS_PER_DAY = 20;
 
 export const receiptContentTypeSchema = z.enum(RECEIPT_CONTENT_TYPES);
 

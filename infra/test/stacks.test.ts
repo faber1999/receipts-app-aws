@@ -107,6 +107,13 @@ describe('ApiStack', () => {
       api.hasResourceProperties('AWS::ApiGatewayV2::Route', { RouteKey: routeKey });
     }
   });
+
+  it('throttles the API, with a tighter limit on receipt uploads', () => {
+    api.hasResourceProperties('AWS::ApiGatewayV2::Stage', {
+      DefaultRouteSettings: { ThrottlingRateLimit: 10, ThrottlingBurstLimit: 20 },
+      RouteSettings: { 'POST /receipts': { ThrottlingRateLimit: 1, ThrottlingBurstLimit: 3 } },
+    });
+  });
 });
 
 describe('ProcessingStack', () => {
