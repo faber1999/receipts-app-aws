@@ -20,7 +20,10 @@ export function toExtractionUpdate(expense: ExtractedExpense) {
   const update = toUpdateExpression({ ...readFields(expense), status: 'REVIEW' });
   return {
     ...update,
+    // Leaving PENDING: the expense is no longer abandoned, so the TTL must not delete it.
+    UpdateExpression: `${update.UpdateExpression} REMOVE #expiresAt`,
     ConditionExpression: '#status = :pending',
+    ExpressionAttributeNames: { ...update.ExpressionAttributeNames, '#expiresAt': 'expiresAt' },
     ExpressionAttributeValues: { ...update.ExpressionAttributeValues, ':pending': 'PENDING' },
   };
 }

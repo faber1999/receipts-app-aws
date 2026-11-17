@@ -26,6 +26,8 @@ export class DataStack extends Stack {
         },
       ],
       removalPolicy: RemovalPolicy.DESTROY,
+      // Abandoned PENDING receipts expire; every status change removes it.
+      timeToLiveAttribute: 'expiresAt',
     });
 
     this.receiptsBucket = new Bucket(this, 'ReceiptsBucket', {

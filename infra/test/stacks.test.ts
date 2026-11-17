@@ -38,6 +38,12 @@ describe('DataStack', () => {
     });
   });
 
+  it('expires items by their expiresAt attribute', () => {
+    data.hasResourceProperties('AWS::DynamoDB::GlobalTable', {
+      TimeToLiveSpecification: { AttributeName: 'expiresAt', Enabled: true },
+    });
+  });
+
   it('keeps the receipts bucket private and only allows browser POST uploads', () => {
     data.hasResourceProperties('AWS::S3::Bucket', {
       ...privateBucket,
@@ -158,6 +164,12 @@ describe('ProcessingStack', () => {
 
     expect(tableActions.length).toBeGreaterThan(0);
     expect(new Set(tableActions)).toEqual(new Set(['dynamodb:UpdateItem']));
+  });
+
+  it('removes the expiry when it marks a receipt as failed', () => {
+    const definition = JSON.stringify(processing.findResources('AWS::StepFunctions::StateMachine'));
+
+    expect(definition).toContain('SET #status = :failed REMOVE #expiresAt');
   });
 
   it('reads only the Anthropic API key parameter from SSM', () => {

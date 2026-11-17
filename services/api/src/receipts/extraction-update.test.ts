@@ -39,6 +39,13 @@ describe('toExtractionUpdate', () => {
   it('still asks for review when nothing could be read', () => {
     const update = toExtractionUpdate({ merchant: null, total: null, currency: null, date: null, category: null });
 
-    expect(update.UpdateExpression).toBe('SET #status = :status');
+    expect(update.UpdateExpression).toBe('SET #status = :status REMOVE #expiresAt');
+  });
+
+  it('removes the expiry, so the TTL never deletes a receipt that left PENDING', () => {
+    const update = toExtractionUpdate(FULL);
+
+    expect(update.UpdateExpression).toMatch(/ REMOVE #expiresAt$/);
+    expect(update.ExpressionAttributeNames).toMatchObject({ '#expiresAt': 'expiresAt', '#status': 'status' });
   });
 });

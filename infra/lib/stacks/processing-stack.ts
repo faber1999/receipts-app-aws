@@ -174,9 +174,9 @@ export class ProcessingStack extends Stack {
     const markFailed = DynamoUpdateItem.jsonata(this, 'MarkFailed', {
       table: props.table,
       key: receiptKey,
-      updateExpression: 'SET #status = :failed',
+      updateExpression: 'SET #status = :failed REMOVE #expiresAt',
       conditionExpression: '#status = :pending',
-      expressionAttributeNames: { '#status': 'status' },
+      expressionAttributeNames: { '#status': 'status', '#expiresAt': 'expiresAt' },
       expressionAttributeValues: {
         ':failed': DynamoAttributeValue.fromString('FAILED'),
         ':pending': DynamoAttributeValue.fromString('PENDING'),

@@ -22,6 +22,8 @@ const logger = new Logger({ serviceName: 'expenses-api' });
 const s3 = new S3Client({});
 
 const UPLOAD_EXPIRES_SECONDS = 300;
+/** A PENDING expense whose photo never arrives is deleted by the table's TTL after a day. */
+const PENDING_TTL_SECONDS = 24 * 60 * 60;
 
 export async function handler(event: APIGatewayProxyEventV2WithJWTAuthorizer): Promise<APIGatewayProxyResultV2> {
   const userId = getUserId(event);
@@ -47,7 +49,7 @@ export async function handler(event: APIGatewayProxyEventV2WithJWTAuthorizer): P
   await db.send(
     new PutCommand({
       TableName: env.TABLE_NAME,
-      Item: toItem(userId, expense),
+      Item: { ...toItem(userId, expense), expiresAt: Math.floor(now.getTime() / 1000) + PENDING_TTL_SECONDS },
       ConditionExpression: 'attribute_not_exists(PK)',
     }),
   );
