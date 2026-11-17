@@ -138,6 +138,17 @@ describe('ProcessingStack', () => {
       Protocol: 'email',
       Endpoint: 'alarms@example.com',
     });
+    processing.hasResourceProperties('AWS::SNS::TopicPolicy', {
+      PolicyDocument: {
+        Statement: Match.arrayWith([
+          Match.objectLike({
+            Effect: 'Allow',
+            Principal: { Service: 'cloudwatch.amazonaws.com' },
+            Action: 'sns:Publish',
+          }),
+        ]),
+      },
+    });
   });
 
   it('only writes to the table with UpdateItem', () => {

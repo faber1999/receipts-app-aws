@@ -5,6 +5,7 @@ import { SnsAction } from 'aws-cdk-lib/aws-cloudwatch-actions';
 import type { ITableV2 } from 'aws-cdk-lib/aws-dynamodb';
 import { Match, Rule } from 'aws-cdk-lib/aws-events';
 import { SfnStateMachine } from 'aws-cdk-lib/aws-events-targets';
+import { PolicyStatement, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
 import { Architecture, Runtime } from 'aws-cdk-lib/aws-lambda';
 import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
 import { LogGroup, RetentionDays } from 'aws-cdk-lib/aws-logs';
@@ -119,6 +120,20 @@ export class ProcessingStack extends Stack {
     });
     deadLetterAlarm.addAlarmAction(new SnsAction(alarmTopic));
     deadLetterAlarm.addOkAction(new SnsAction(alarmTopic));
+
+    // enforceSSL replaces the topic's default policy, so CloudWatch needs an explicit allow,
+    // scoped to this alarm (confused-deputy protection).
+    alarmTopic.addToResourcePolicy(
+      new PolicyStatement({
+        principals: [new ServicePrincipal('cloudwatch.amazonaws.com')],
+        actions: ['sns:Publish'],
+        resources: [alarmTopic.topicArn],
+        conditions: {
+          ArnLike: { 'aws:SourceArn': deadLetterAlarm.alarmArn },
+          StringEquals: { 'aws:SourceAccount': this.account },
+        },
+      }),
+    );
 
     // --- Workflow --------------------------------------------------------------------------
     const receiptKey = {
